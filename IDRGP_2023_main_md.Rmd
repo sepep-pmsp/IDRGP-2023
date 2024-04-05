@@ -1,0 +1,130 @@
+---
+title: "IDRGP 2023"
+author: "FPR e DG"
+date: "2024-04-05"
+output: html_document
+---
+
+# IDRGP 2023
+
+## **Script para o monitoramento do IDRGP no exercício de 2023**
+
+### Intodução
+
+**Objetivo**: levantar, tratar e analisar dados dos valores executados, nas regiões da cidade de são paulo a partir de uma cesta de desepesas selecionadas, que incluem o Programa de Metas 2021-2024 Versão Alteração Programática, uma lista de obras monitoradas e intervenções do Orçamento Cidadão
+
+### Pacotes utilizados:
+
+```{r Pacotes, echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+
+library(tidyverse)
+library(readxl)
+library(purrr)
+library(sf)
+
+base::options(scipen = 99)
+
+```
+
+### Valores de referência do IDRGP
+
+Inicialmente inserimos os valores de referência do IDRGP:
+
+```{r Valores de referência, echo=FALSE, message=FALSE, warning=FALSE}
+(ref_idrgp <- dplyr::tibble(sp_nome = c("Subprefeitura Capela do Socorro",
+                                        "Subprefeitura M'Boi Mirim",
+                                        "Subprefeitura Campo Limpo",
+                                        "Subprefeitura São Mateus",
+                                        "Subprefeitura Itaquera",
+                                        "Subprefeitura Cidade Ademar",
+                                        "Subprefeitura Freguesia/Brasilândia",
+                                        "Subprefeitura São Miguel Paulista",
+                                        "Subprefeitura Itaim Paulista",
+                                        "Subprefeitura Pirituba/Jaraguá",
+                                        "Subprefeitura Parelheiros",
+                                        "Subprefeitura Jaçanã/Tremembé",
+                                        "Subprefeitura Sapopemba",
+                                        "Subprefeitura de Guaianases",
+                                        "Subprefeitura Penha",
+                                        "Subprefeitura Ipiranga",
+                                        "Subprefeitura Cidade Tiradentes",
+                                        "Subprefeitura Casa Verde/Cachoeirinha",
+                                        "Subprefeitura Perus/Anhanguera",
+                                        "Subprefeitura Butantã",
+                                        "Subprefeitura Ermelino Matarazzo",
+                                        "Subprefeitura de Vila Prudente",
+                                        "Subprefeitura Sé",
+                                        "Subprefeitura Vila Maria/Vila Guilherme",
+                                        "Subprefeitura Aricanduva/Formosa/Carrão",
+                                        "Subprefeitura Jabaquara",
+                                        "Subprefeitura Mooca",
+                                        "Subprefeitura Santana/Tucuruvi",
+                                        "Subprefeitura Lapa",
+                                        "Subprefeitura Santo Amaro",
+                                        "Subprefeitura Vila Mariana",
+                                        "Subprefeitura Pinheiros"),
+  ref_idrgp = c(0.0708, 0.0706, 0.0616, 0.0511, 0.0487, 0.0483, 0.0456, 0.0419,
+                0.0406, 0.0377, 0.0374, 0.0364, 0.0353, 0.0346, 0.0346, 0.0291,
+                0.0278, 0.0270, 0.0258, 0.0250, 0.0210, 0.0183, 0.0179, 0.0167,
+                0.0157, 0.0150, 0.0150, 0.0146, 0.0113, 0.0094, 0.0086, 0.0068)) %>% 
+  arrange(desc(ref_idrgp)))
+```
+
+### Base cartográfica do Município
+
+Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa. 
+
+A partir dela selecionamos os dados das Subprefeituras com os valores de referência do índice.
+
+```{r Cartografia, echo=FALSE, message=FALSE, warning=FALSE}
+sp <- read_sf("SIRGAS_SHP_subprefeitura//SIRGAS_SHP_subprefeitura_polygon.shp")
+
+subprefeitura <- sp %>% 
+    rename(sigla = sp_sigla,
+           NOME=sp_nome) %>% 
+    select(NOME, sigla, geometry)
+subprefeitura<- subprefeitura %>% 
+  mutate(sp_nome = case_when(
+    sigla %in% "AF" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
+    sigla %in% "BT" ~ "Subprefeitura Butantã",
+    sigla %in% "CL" ~ "Subprefeitura Campo Limpo",
+    sigla %in% "CS" ~ "Subprefeitura Capela do Socorro",
+    sigla %in% "CV" ~ "Subprefeitura Casa Verde/Cachoeirinha",
+    sigla %in% "CAA" ~ "Subprefeitura Cidade Ademar",
+    sigla %in% "CT" ~ "Subprefeitura Cidade Tiradentes",
+    sigla %in% "EM" ~ "Subprefeitura Ermelino Matarazzo",
+    sigla %in% "FO" ~ "Subprefeitura Freguesia/Brasilândia",
+    sigla %in% "GU" ~ "Subprefeitura de Guaianases",
+    sigla %in% "IP" ~ "Subprefeitura Ipiranga",
+    sigla %in% "IP" ~ "Subprefeitura Itaim Paulista",
+    sigla %in% "IT" ~ "Subprefeitura Itaquera",
+    sigla %in% "JA" ~ "Subprefeitura Jabaquara",
+    sigla %in% "JT" ~ "Subprefeitura Jaçanã/Tremembé",
+    sigla %in% "LA" ~ "Subprefeitura Lapa",
+    sigla %in% "MB" ~ "Subprefeitura M'Boi Mirim",
+    sigla %in% "MO" ~ "Subprefeitura Mooca",
+    sigla %in% "PA" ~ "Subprefeitura Parelheiros",
+    sigla %in% "PE" ~ "Subprefeitura Penha",
+    sigla %in% "PR" ~ "Subprefeitura Perus/Anhanguera",
+    sigla %in% "PI" ~ "Subprefeitura Pinheiros",
+    sigla %in% "PJ" ~ "Subprefeitura Pirituba/Jaraguá",
+    sigla %in% "ST" ~ "Subprefeitura Santana/Tucuruvi",
+    sigla %in% "SA" ~ "Subprefeitura Santo Amaro",
+    sigla %in% "SM" ~ "Subprefeitura São Mateus",
+    sigla %in% "MP" ~ "Subprefeitura São Miguel Paulista",
+    sigla %in% "SB" ~ "Subprefeitura Sapopemba",
+    sigla %in% "SE" ~ "Subprefeitura Sé",
+    sigla %in% "MG" ~ "Subprefeitura Vila Maria/Vila Guilherme",
+    sigla %in% "VM" ~ "Subprefeitura Vila Mariana",
+    TRUE ~ "Subprefeitura de Vila Prudente"))
+
+subprefeitura <- inner_join(subprefeitura, ref_idrgp, by = "sp_nome")
+#teste do mapa com siglas
+subprefeitura %>% 
+  ggplot() +
+  geom_sf(aes(fill = ref_idrgp, geometry = geometry)) +
+  scale_fill_gradient(low="red",high="blue") +
+  geom_sf_text(aes(label = sigla), color = "black", size = 1.5, fontface = "bold") + 
+  theme_void()
+
+```
