@@ -72,7 +72,7 @@ Inicialmente inserimos os valores de referência do IDRGP:
 
 ### Base cartográfica do Município
 
-Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa. 
+Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa.
 
 A partir dela selecionamos os dados das Subprefeituras com os valores de referência do índice.
 
@@ -128,3 +128,7 @@ subprefeitura %>%
   theme_void()
 
 ```
+
+
+
+### Bases do PdM 2021-2024
