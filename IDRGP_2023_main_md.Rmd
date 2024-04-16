@@ -72,7 +72,7 @@ Inicialmente inserimos os valores de referência do IDRGP:
 
 ### Base cartográfica do Município
 
-Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa. 
+Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa.
 
 A partir dela selecionamos os dados das Subprefeituras com os valores de referência do índice.
 
@@ -128,3 +128,129 @@ subprefeitura %>%
   theme_void()
 
 ```
+
+### Base do Orçamento Cidadão
+
+Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Fazenda (SF) e tratada por SEPEP para desvincular os projetos que também estão inseridos no escopo do Programa de Metas.
+
+```{r Base Orçamento Cidadão, echo=FALSE}
+
+
+df_oc1 <- readxl::read_excel("Planilha_OC_23_v2.xlsx")
+df_oc <- df_oc1 %>% 
+  filter(IDRGP == "Sim") %>% 
+  select(`Nº Proposta`, DOTACAO, Secretaria, Subprefeitura, Liquidação)
+df_oc<- df_oc %>% 
+  rename("META"="Nº Proposta",
+         sp_nome = Subprefeitura)
+df_oc <- df_oc %>% 
+  mutate(Liquidação = as.numeric(Liquidação))
+df_oc <- df_oc %>% 
+  mutate("sp_nome" = case_when(
+    sp_nome %in% "Aricanduva/Formosa/Carrão" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
+    sp_nome %in% "Butantã" ~ "Subprefeitura Butantã",
+    sp_nome %in% "Campo Limpo" ~ "Subprefeitura Campo Limpo",
+    sp_nome %in% "Capela do Socorro" ~ "Subprefeitura Capela do Socorro",
+    sp_nome %in% "Casa Verde" ~ "Subprefeitura Casa Verde/Cachoeirinha",
+    sp_nome %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
+    sp_nome %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
+    sp_nome %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
+    sp_nome %in% "Freguesia/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
+    sp_nome %in% "Guaianases" ~ "Subprefeitura de Guaianases",
+    sp_nome %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
+    sp_nome %in% "Itaim Paulista" ~ "Subprefeitura Itaim Paulista",
+    sp_nome %in% "Itaquera" ~ "Subprefeitura Itaquera",
+    sp_nome %in% "Jabaquara" ~ "Subprefeitura Jabaquara",
+    sp_nome %in% "Jaçanã/Tremembé" ~ "Subprefeitura Jaçanã/Tremembé",
+    sp_nome %in% "Lapa" ~ "Subprefeitura Lapa",
+    sp_nome %in% "M'Boi Mirim" ~ "Subprefeitura M'Boi Mirim",
+    sp_nome %in% "Mooca" ~ "Subprefeitura Mooca",
+    sp_nome %in% "Parelheiros" ~ "Subprefeitura Parelheiros",
+    sp_nome %in% "Penha" ~ "Subprefeitura Penha",
+    sp_nome %in% "Perus/Anhanguera" ~ "Subprefeitura Perus/Anhanguera",
+    sp_nome %in% "Pinheiros" ~ "Subprefeitura Pinheiros",
+    sp_nome %in% "Pirituba/Jaraguá" ~ "Subprefeitura Pirituba/Jaraguá",
+    sp_nome %in% "Santana/Tucuruvi" ~ "Subprefeitura Santana/Tucuruvi",
+    sp_nome %in% "Santo Amaro" ~ "Subprefeitura Santo Amaro",
+    sp_nome %in% "São Mateus" ~ "Subprefeitura São Mateus",
+    sp_nome %in% "São Miguel Paulista" ~ "Subprefeitura São Miguel Paulista",
+    sp_nome %in% "Sapopemba" ~ "Subprefeitura Sapopemba",
+    sp_nome %in% "Sé" ~ "Subprefeitura Sé",
+    sp_nome %in% "Vila Maria/Vila Guilherme" ~ "Subprefeitura Vila Maria/Vila Guilherme",
+    sp_nome %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
+    TRUE ~ "Subprefeitura de Vila Prudente")) 
+
+df_oc <- df_oc %>% 
+  mutate(acao_orc = stringr::str_sub(DOTACAO, start = 19, end = 23))
+
+
+df_sub_oc <- df_oc %>% 
+  group_by(sp_nome) %>% 
+  summarise(total_oc = sum(Liquidação))
+sum(df_sub_oc$total_oc)
+print(df_sub_oc)
+```
+
+
+
+Os valores do Orçamento Cidadão estão concentrados em apenas 6 subprefeituras, totalizando R$ 35.400.344. 
+
+
+Agora vamos construir uma base do Orçamento Cidadão com os dados de georreferenciamento para, posteriormente, juntar com as bases do PdM e das Obras Prioritárias.
+
+
+```{r Base orçamento Cidadão Georreferênciada, echo=FALSE}
+
+idrgp_oc<- full_join(subprefeitura, df_sub_oc, by = "sp_nome")
+idrgp_oc<- idrgp_oc %>% 
+  mutate(total_oc = ifelse( is.na(total_oc), 0, total_oc))
+
+idrgp_oc %>% 
+  ggplot() +
+  geom_sf(aes(fill = total_oc, geometry = geometry)) +
+  scale_fill_gradient(low="white",high="blue") +
+  geom_sf_text(aes(label = sigla), color = "black", size = 1.5, fontface = "bold") + 
+  theme_void()
+```
+
+
+Por fim, com objetivo meramente descritivo, vamos visualizar os dados do Orçamento Cidadão em três gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura e a liquidação por Ação Orçamentária.
+
+
+```{r Gráficos do orçamento Cidadão, echo=FALSE}
+
+#gráfico por órgão:
+df_oc %>% 
+  group_by(Secretaria) %>% 
+  summarise(Liquidado_OC = sum(Liquidação)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado_OC,
+               y = Secretaria),
+           show.legend = TRUE) +
+  labs(title = "Orçamento cidadão por Órgãos") +
+  theme_minimal()
+  
+#gráfico por Sub
+df_oc %>% 
+  group_by(sp_nome) %>% 
+  summarise(Liquidado_OC = sum(Liquidação)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado_OC,
+               y = sp_nome),
+           show.legend = TRUE) +
+  labs(title = "Orçamento cidadão por Subprefeitura") +
+  theme_minimal()
+
+#gráfico por ação orçamentária
+df_oc %>% 
+  group_by(acao_orc) %>% 
+  summarise(Liquidado_OC = sum(Liquidação)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado_OC,
+               y = acao_orc),
+           show.legend = TRUE) +
+  labs(title = "Orçamento cidadão por Ação Orçamentária") +
+  theme_minimal()
+##
+```
+
