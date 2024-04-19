@@ -2,7 +2,9 @@
 title: "IDRGP 2023"
 author: "FPR e DG"
 date: "2024-04-05"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 # IDRGP 2023
@@ -21,6 +23,10 @@ library(tidyverse)
 library(readxl)
 library(purrr)
 library(sf)
+library(rmarkdown)
+library(tinytex)
+library(janitor)
+
 
 base::options(scipen = 99)
 
@@ -28,7 +34,7 @@ base::options(scipen = 99)
 
 ### Valores de referência do IDRGP
 
-Inicialmente inserimos os valores de referência do IDRGP:
+Inicialmente, inserimos os valores de referência do IDRGP:
 
 ```{r Valores de referência, echo=FALSE, message=FALSE, warning=FALSE}
 (ref_idrgp <- dplyr::tibble(sp_nome = c("Subprefeitura Capela do Socorro",
@@ -129,6 +135,149 @@ subprefeitura %>%
 
 ```
 
-
-
 ### Bases do PdM 2021-2024
+
+Nesta seção, detalhamos os processos de obtenção e transformação dos dados de execução física e orçamentária do Programa de Metas. Para efeitos de monitoramento do IDRGP 2023, são considerados 29 compromissos do Programa de Metas 2021-2024 versão Alteração Programática. Tanto os dados de execução física quanto os da execução orçamentária são inseridos por cada órgão responsável no Sistema de Monitoramento e Acompanhamento Estratégico (SMAE).
+
+Os dados de execução física são, nas metas selecionadas para o IDRGP 2023, desagregadas em nível regional (subprefeitura), podendo, dessa forma, serem extraídos diretamente do SMAE. Um relatório foi extraído em 04/03/2024 e registrado na aba "execucao_regionalizada, do documento"metas_alteracao_programatica.xlsx"). Os dados de execução orçamentária correspondem à liquidação das dotações orçamentárias que abarcam despesas vinculadas ao Programa de Metas. Para a desagregação regional destes dados, lançou-se mão de duas estratégias:
+
+-   Coleta de dados diretamente com os órgãos, nos casos das Metas 3, 4, 5, 7, 8, 9, 78 e 79, sob responsabilidade da Secretaria Municpal de Saúde (SMS) e da Meta 58, conduzida pela Secretaria Municipal de Cultura (SMC);
+-   Regionalização a partir do "Detalhamento da Ação", por meio de consulta a dados publicados pela Secretaria da Fazenda (SF). A base de dados da regionalização da execução orçamentária do exercício de 2023, pode ser extraída por meio do portal: \<[[https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\){.uri}]([https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\){.uri}){.uri}\>, nos formatos "[.csv](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv)", "[.xlsx](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.xlsx)", "[.ods](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.ods)" ou "[.json](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.json)"
+
+Para regionalização da execução orçamentária das metas consideradas para o monitoramento do IDRGP 2023, utilizamos a base no formato ".xlsx". Manipulamos a planilha de forma que cada linha correspondesse a uma dotação orçamentária e, em colunas, obtivessemos valor correspondente para cada uma das subprefeituras (ou outros níveis de regionalização).
+
+Há casos em que a execução orçamentária da dotação foi integralmente dedicada ao Programa de Metas. Nesses casos, o valor regionalizado pelo detalhamento da ação corresponde ao valor regionalizado das metas consideradas para o IDRGP 2023.
+
+Nos casos em que a dotação orçamentária não abarcou desepesas exclusivas do Programa de Metas, assumiu-se que a execução regionalizada da meta foi proporcional à regioanlização pelo detalhamento da ação. Esta planilha manipulada foi registrada na aba "totais_meta", do documento "metas_alteracao_programatica.xlsx".
+
+Para que não houvesse perda de dados ao inserir as informações fornecidas diretamente por SMS e SMS, o documento "metas_alteracao_programatica.xlsx" abarca uma aba contendo a mesma base da aba "totais_metas", substituindo as linhas correspondentes às metas 3, 4, 5, 7, 8, 9, 58, 78 e 79 pelos valores informados pelos órgõas. Esta base encontra-se na aba "totais_metas_inf_orgaos".
+
+Introduzidas as passagens que originaram os dados da execução física e orçamentária do Programa de Metas, apresentamos, a seguir, as manipulações necessárias para a análise dos dados.
+
+```{r}
+#ler a aba totais_metas
+df_pdm1 <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas", skip = 266) %>% 
+   dplyr::select(-c("Diferença Soma dos valores proporcionais vs SMAE",
+                    "Observações",
+                    "...46",
+                    "supra",
+                    "...48",
+                    "zero"))
+
+#transformar as colunas de subprefeituras e supra subprefeituras em uma única coluna
+df_pdm1 <- df_pdm1 %>% 
+    tidyr::pivot_longer(
+      cols = c("Subprefeitura Aricanduva/Formosa/Carrão":"SE+SUPRACENTRO"),
+      names_to = "sp_nome",
+      values_to = "valor_da")
+
+
+#ler a aba totais_metas_inf_orgaos
+df_pdm2 <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas_inf_orgaos", skip = 266) %>% 
+    dplyr::select(-c("Diferença Soma dos valores proporcionais vs SMAE", "Observações")) %>% 
+    dplyr::rename("SE+SUPRACENTRO" = "SE+SUPRA_CENTRO") #para padronizar os nomes dessas colunas
+
+#transformar as colunas de subprefeituras e supra subprefeituras em uma única coluna
+df_pdm2 <- df_pdm2 %>% 
+    tidyr::pivot_longer(
+      cols = c("Subprefeitura Aricanduva/Formosa/Carrão":"SE+SUPRACENTRO"),
+      names_to = "sp_nome",
+      values_to = "valor_da_inf_orgao") %>% 
+    dplyr::select(META, DOTACAO, sp_nome, valor_da_inf_orgao)
+
+
+## juntar df_pdm1 e df_pdm2
+(df_pdm <- dplyr::full_join(df_pdm1, df_pdm2, by = c("META", "DOTACAO", "sp_nome")))
+
+df_pdm$valor_da_inf_orgao <- df_pdm$valor_da_inf_orgao %>% tidyr::replace_na(0) #substituir NA por 0
+
+
+# checar valores
+base::sum(df_pdm$valor_da, na.rm = TRUE)-base::sum(df_pdm1$valor_da, na.rm = TRUE)
+base::sum(df_pdm$valor_da_inf_orgao, na.rm = TRUE)-base::sum(df_pdm2$valor_da_inf_orgao, na.rm = TRUE)
+
+```
+Ao consolidar a base de dados do Programa de Metas, identificou-se alguma movimentação equivocada que acrescentou R$ 55.488.642 tanto na coluna valor_da quanto na coluna valor_da_inf_orgao. O bloco, a seguir, busca explorar e sanear o problema.
+
+```{r paged.print=TRUE}
+
+#obter informações do DA
+base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
+                          locale = locale(encoding = "latin1")) %>% 
+  janitor::clean_names()
+
+base::names(base_da)
+
+
+#criar coluna com a codificação da dotação orçamentária
+
+base_da <- base_da %>% 
+  dplyr::mutate(dotacao = base::paste(codigo_orgao,
+                                      codigo_unidade,
+                                      codigo_funcao,
+                                      codigo_subfuncao,
+                                      codigo_programa,
+                                      codigo_proj_ativ,
+                                      codigo_conta_despesa,
+                                      codigo_fonte,
+                                      codigo_exercicio_fonte,
+                                      codigo_destinacao_recurso,
+                                      codigo_vinculo_pmsp,
+                                      codigo_tipo_credito_orcamentario,
+                                      sep = "."),
+                dotacao = base::sub('^(.{19})', '\\1.', dotacao)) %>% 
+  dplyr::select(dotacao, sigla_orgao, regiao, subprefeitura, distrito, tipo_regionalizacao, valor_detalhamento_acao) %>% 
+  dplyr::group_by(dotacao, subprefeitura) %>% 
+  dplyr::summarise(sigla_orgao = first(sigla_orgao),
+                   regiao = first(regiao),
+                   subprefeitura = first(subprefeitura),
+                   distrito = first(distrito),
+                   tipo_regionalizacao = first(tipo_regionalizacao),
+                   valor_detalhamento_acao = sum(valor_detalhamento_acao)) %>% 
+  dplyr::filter(tipo_regionalizacao == "Despesa Regionalizável")
+
+base_da$valor_detalhamento_acao <- base_da$valor_detalhamento_acao %>%
+  tidyr::replace_na(0)
+
+sum(base_da$valor_detalhamento_acao)
+
+32221702899.96-32509387053
+
+
+# criar df a partir de base_da, apenas com as dotações do PdM
+
+nchar("84.10.10.301.3003.1.525.44905100.00.1.500.9001.1") #=48
+
+(teste1 <- df_pdm1 %>%
+  dplyr::filter(!base::nchar(DOTACAO)==48 &
+                  valor_da > 0))
+
+sum(teste1$valor_da)
+
+teste2 <- df_pdm2 %>% 
+  dplyr::filter(!base::nchar(DOTACAO)==48 &
+                  valor_da_inf_orgao > 0)
+
+sum(teste2$valor_da_inf_orgao)
+
+sum(teste2$valor_da_inf_orgao)+sum(teste1$valor_da)
+
+
+
+
+
+
+
+
+```
+
+
+
+```{r}
+
+df_pdm %>% 
+  group_by(META) %>% 
+  summarise(sum(unique(valor_da)))
+
+```
+
