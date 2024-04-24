@@ -21,9 +21,7 @@ output:
 
 library(tidyverse)
 library(readxl)
-library(purrr)
 library(sf)
-library(rmarkdown)
 library(tinytex)
 library(janitor)
 
@@ -211,7 +209,7 @@ base::names(base_da)
 
 #criar coluna com a codificação da dotação orçamentária
 
-base_da <- base_da %>% 
+base_da1 <- base_da %>% 
   dplyr::mutate(dotacao = base::paste(codigo_orgao,
                                       codigo_unidade,
                                       codigo_funcao,
@@ -236,17 +234,20 @@ base_da <- base_da %>%
                    valor_detalhamento_acao = sum(valor_detalhamento_acao)) %>% 
   dplyr::filter(tipo_regionalizacao == "Despesa Regionalizável")
 
-base_da$valor_detalhamento_acao <- base_da$valor_detalhamento_acao %>%
-  tidyr::replace_na(0)
-
-sum(base_da$valor_detalhamento_acao)
-
-32221702899.96-32509387053
-
 
 # criar df a partir de base_da, apenas com as dotações do PdM
 
 nchar("84.10.10.301.3003.1.525.44905100.00.1.500.9001.1") #=48
+
+# ajustar nas bases df_pdm1 e df_pdm2 observações cujas dotações não estão com a codificação completa
+
+teste3 <- df_pdm %>% 
+  mutate(dotacao_completa = if_else(nchar(DOTACAO) == 48, "S", "N"))
+
+teste3 %>% 
+  filter(dotacao_completa == "N")
+
+base_dotacao_pdm <- unique(teste3$DOTACAO)
 
 (teste1 <- df_pdm1 %>%
   dplyr::filter(!base::nchar(DOTACAO)==48 &
@@ -262,7 +263,7 @@ sum(teste2$valor_da_inf_orgao)
 
 sum(teste2$valor_da_inf_orgao)+sum(teste1$valor_da)
 
-
+colnames(df_pdm)
 
 
 
