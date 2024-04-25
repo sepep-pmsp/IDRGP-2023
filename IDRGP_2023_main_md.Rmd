@@ -3,8 +3,8 @@ title: "IDRGP 2023"
 author: "FPR e DG"
 date: "2024-04-05"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 # IDRGP 2023
