@@ -238,39 +238,21 @@ base_da1 <- base_da %>%
 # criar df a partir de base_da, apenas com as dotações do PdM
 
 nchar("84.10.10.301.3003.1.525.44905100.00.1.500.9001.1") #=48
+nchar("25.10.13.392.3001.6.371.3390") #=28
 
-# ajustar nas bases df_pdm1 e df_pdm2 observações cujas dotações não estão com a codificação completa
+base_dotacao_pdm <- unique(df_pdm$DOTACAO) #string com as dotações pdm
 
-teste3 <- df_pdm %>% 
-  mutate(dotacao_completa = if_else(nchar(DOTACAO) == 48, "S", "N"))
+base_da1<- base_da1 %>%
+  mutate(dotacao_pdm = case_when(
+    dotacao %in% base_dotacao_pdm ~ "s",
+    substr(dotacao, 1, 28) %in% substr(base_dotacao_pdm, 1, 28) ~ "s",
+    TRUE ~ "n"
+  ))
 
-teste3 %>% 
-  filter(dotacao_completa == "N")
-
-base_dotacao_pdm <- unique(teste3$DOTACAO)
-
-(teste1 <- df_pdm1 %>%
-  dplyr::filter(!base::nchar(DOTACAO)==48 &
-                  valor_da > 0))
-
-sum(teste1$valor_da)
-
-teste2 <- df_pdm2 %>% 
-  dplyr::filter(!base::nchar(DOTACAO)==48 &
-                  valor_da_inf_orgao > 0)
-
-sum(teste2$valor_da_inf_orgao)
-
-sum(teste2$valor_da_inf_orgao)+sum(teste1$valor_da)
-
-colnames(df_pdm)
-
-
-
-
-
+# 
 
 ```
+
 
 
 
