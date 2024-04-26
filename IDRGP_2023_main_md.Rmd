@@ -207,6 +207,8 @@ base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento
 base::names(base_da)
 
 
+
+
 #criar coluna com a codificação da dotação orçamentária
 
 base_da1 <- base_da %>% 
@@ -234,6 +236,49 @@ base_da1 <- base_da %>%
                    valor_detalhamento_acao = sum(valor_detalhamento_acao)) %>% 
   dplyr::filter(tipo_regionalizacao == "Despesa Regionalizável")
 
+#checar existência de NA
+
+base_da1 %>%
+  summarise_all(~ any(is.na(.))) #não há NA
+
+#transformar subprefeitura=="Supra Subprefeitura Centro" em "Subprefeitura Sé"
+
+unique(base_da_pdm$subprefeitura)
+
+base_da1 <- base_da1 %>% 
+  mutate(subprefeitura = case_when(
+    subprefeitura %in% "Supra Subprefeitura Centro" ~ "Subprefeitura Sé",
+    TRUE ~ subprefeitura)
+  )
+  
+##Ratear valores de subprefeitura=="Supra Subprefeitura Região X" nas respectivas subprefeituras da Região X
+
+suporte_rateio_regioes <- base_da1 %>% 
+  filter(subprefeitura %in% c("Supra Subprefeitura Leste",
+                          "Supra Subprefeitura Norte",
+                          "Supra Subprefeitura Oeste",
+                          "Supra Subprefeitura Sul")) %>% 
+  group_by(subprefeitura) %>% 
+  arrange(subprefeitura)
+
+colnames(base_da1)
+
+n_sub_regioes <- base_da1 %>% 
+  filter(!str_detect(subprefeitura, "Supra")) %>% 
+  group_by(regiao) %>% 
+  summarise(count = n_distinct(subprefeitura))
+
+
+
+#acrescentar o gasto proporcial em cada região; em cada dotação
+
+base_da1 <- base_da1 %>% 
+  group_by(dotacao) %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao))
+
+base_da1 <- base_da1 %>% 
+  mutate(proporcao = valor_detalhamento_acao/total_valor)
+
 
 # criar df a partir de base_da, apenas com as dotações do PdM
 
@@ -242,14 +287,21 @@ nchar("25.10.13.392.3001.6.371.3390") #=28
 
 base_dotacao_pdm <- unique(df_pdm$DOTACAO) #string com as dotações pdm
 
-base_da1<- base_da1 %>%
+base_da_pdm <- base_da1 %>%
   mutate(dotacao_pdm = case_when(
     dotacao %in% base_dotacao_pdm ~ "s",
     substr(dotacao, 1, 28) %in% substr(base_dotacao_pdm, 1, 28) ~ "s",
     TRUE ~ "n"
-  ))
+  )) %>% 
+  filter(dotacao_pdm == "s")
 
-# 
+#checar se todas as dotações somam 100%
+base_da_pdm %>% 
+  group_by(dotacao) %>% 
+  summarise(checagem = sum(proporcao))
+
+
+
 
 ```
 
