@@ -78,7 +78,7 @@ Inicialmente, inserimos os valores de referência do IDRGP:
 
 Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa.
 
-A partir dela selecionamos os dados das Subprefeituras com os valores de referência do índice.
+A partir dela, selecionamos os dados das Subprefeituras com os valores de referência do índice.
 
 ```{r Cartografia, echo=FALSE, message=FALSE, warning=FALSE}
 sp <- read_sf("SIRGAS_SHP_subprefeitura//SIRGAS_SHP_subprefeitura_polygon.shp")
@@ -137,9 +137,10 @@ subprefeitura %>%
 
 Nesta seção, detalhamos os processos de obtenção e transformação dos dados de execução física e orçamentária do Programa de Metas. Para efeitos de monitoramento do IDRGP 2023, são considerados 29 compromissos do Programa de Metas 2021-2024 versão Alteração Programática. Tanto os dados de execução física quanto os da execução orçamentária são inseridos por cada órgão responsável no Sistema de Monitoramento e Acompanhamento Estratégico (SMAE).
 
-Os dados de execução física são, nas metas selecionadas para o IDRGP 2023, desagregadas em nível regional (subprefeitura), podendo, dessa forma, serem extraídos diretamente do SMAE. Um relatório foi extraído em 04/03/2024 e registrado na aba "execucao_regionalizada, do documento"metas_alteracao_programatica.xlsx"). Os dados de execução orçamentária correspondem à liquidação das dotações orçamentárias que abarcam despesas vinculadas ao Programa de Metas. Para a desagregação regional destes dados, lançou-se mão de duas estratégias:
+Os dados de execução física são, nas metas selecionadas para o IDRGP 2023, desagregadas em nível regional (subprefeitura), podendo, dessa forma, serem extraídos diretamente do SMAE. Um relatório foi extraído em 04/03/2024 e registrado na aba "execucao_regionalizada, do documento"metas_alteracao_programatica.xlsx". Os dados de execução orçamentária correspondem à liquidação das dotações orçamentárias que abarcam despesas vinculadas ao Programa de Metas. Para a desagregação regional destes dados, lançou-se mão de duas estratégias:
 
 -   Coleta de dados diretamente com os órgãos, nos casos das Metas 3, 4, 5, 7, 8, 9, 78 e 79, sob responsabilidade da Secretaria Municpal de Saúde (SMS) e da Meta 58, conduzida pela Secretaria Municipal de Cultura (SMC);
+- Cálculo da razão entre o valor liquidado e a execução física, por região, para a Meta 17;
 -   Regionalização a partir do "Detalhamento da Ação", por meio de consulta a dados publicados pela Secretaria da Fazenda (SF). A base de dados da regionalização da execução orçamentária do exercício de 2023, pode ser extraída por meio do portal: \<[[https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\){.uri}]([https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\){.uri}){.uri}\>, nos formatos "[.csv](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv)", "[.xlsx](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.xlsx)", "[.ods](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.ods)" ou "[.json](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.json)"
 
 Para regionalização da execução orçamentária das metas consideradas para o monitoramento do IDRGP 2023, utilizamos a base no formato ".xlsx". Manipulamos a planilha de forma que cada linha correspondesse a uma dotação orçamentária e, em colunas, obtivessemos valor correspondente para cada uma das subprefeituras (ou outros níveis de regionalização).
@@ -207,8 +208,6 @@ base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento
 base::names(base_da)
 
 
-
-
 #criar coluna com a codificação da dotação orçamentária
 
 base_da1 <- base_da %>% 
@@ -236,14 +235,13 @@ base_da1 <- base_da %>%
                    valor_detalhamento_acao = sum(valor_detalhamento_acao)) %>% 
   dplyr::filter(tipo_regionalizacao == "Despesa Regionalizável")
 
+
 #checar existência de NA
 
 base_da1 %>%
   summarise_all(~ any(is.na(.))) #não há NA
 
 #transformar subprefeitura=="Supra Subprefeitura Centro" em "Subprefeitura Sé"
-
-unique(base_da_pdm$subprefeitura)
 
 base_da1 <- base_da1 %>% 
   mutate(subprefeitura = case_when(
@@ -261,12 +259,49 @@ suporte_rateio_regioes <- base_da1 %>%
   group_by(subprefeitura) %>% 
   arrange(subprefeitura)
 
-colnames(base_da1)
-
 n_sub_regioes <- base_da1 %>% 
   filter(!str_detect(subprefeitura, "Supra")) %>% 
   group_by(regiao) %>% 
   summarise(count = n_distinct(subprefeitura))
+
+colnames(base_da1)
+
+dotacao <- c(rep("dot1", 21), rep("dot2", 21), rep("dot3", 21))
+regiao <- c(rep("norte", 5), rep("sul", 5), rep("leste", 6), rep("oeste", 3), rep("centro", 2),
+            rep("norte", 5), rep("sul", 5), rep("leste", 6), rep("oeste", 3), rep("centro", 2),
+            rep("norte", 5), rep("sul", 5), rep("leste", 6), rep("oeste", 3), rep("centro", 2))
+subprefeitura <- c("santa", "pirituba", "perus", "jaçana", "supra_norte", "capela do socorro",
+                   "cidade ademar", "vila mariana", "parelheiros", "supra_sul",
+                   "itaquera", "ermelino", "aricanduva", "mooca", "itaim paulista", "supra_leste",
+                   "butanta", "lapa", "supra_oeste", "sé", "supra_centro", "santa", "pirituba", "perus",
+                   "jaçana", "supra_norte", "capela do socorro",
+                   "cidade ademar", "vila mariana", "parelheiros", "supra_sul",
+                   "itaquera", "ermelino", "aricanduva", "mooca", "itaim paulista", "supra_leste",
+                   "butanta", "lapa", "supra_oeste",
+                   "sé", "supra_centro", "santa", "pirituba", "perus", "jaçana", "supra_norte", "capela do socorro",
+                   "cidade ademar", "vila mariana", "parelheiros", "supra_sul",
+                   "itaquera", "ermelino", "aricanduva", "mooca", "itaim paulista", "supra_leste",
+                   "butanta", "lapa", "supra_oeste",
+                   "sé", "supra_centro")
+valor <- seq(1000, 1062)
+
+# Criando o dataframe
+dados <- tibble(dotacao = dotacao,
+                regiao = regiao,
+                subprefeitura = subprefeitura,
+                valor = valor)
+
+media_por_grupo <- dados %>%
+  filter(str_detect(subprefeitura, "supra")) %>% 
+  group_by(dotacao, regiao) %>% 
+  summarise(valor_sub = valor / n_distinct(subprefeitura))
+
+dados <- dados %>%
+  left_join(media_por_grupo, by = c("dotacao", "regiao"))
+
+dados <- dados %>%
+  mutate(rateio = ifelse(subprefeitura %in% c("supra_norte", "supra_sul", "supra_leste", "supra_oeste", "supra_centro"),
+                         valor / n_distinct(subprefeitura) * media_valor, valor))
 
 
 
