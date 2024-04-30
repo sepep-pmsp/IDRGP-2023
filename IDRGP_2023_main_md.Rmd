@@ -264,45 +264,21 @@ n_sub_regioes <- base_da1 %>%
   group_by(regiao) %>% 
   summarise(count = n_distinct(subprefeitura))
 
-colnames(base_da1)
+(suporte_rateio_regioes <- suporte_rateio_regioes %>% 
+  left_join(n_sub_regioes, by = "regiao") %>% 
+  mutate(valor_rateio = valor_detalhamento_acao / count))
 
-dotacao <- c(rep("dot1", 21), rep("dot2", 21), rep("dot3", 21))
-regiao <- c(rep("norte", 5), rep("sul", 5), rep("leste", 6), rep("oeste", 3), rep("centro", 2),
-            rep("norte", 5), rep("sul", 5), rep("leste", 6), rep("oeste", 3), rep("centro", 2),
-            rep("norte", 5), rep("sul", 5), rep("leste", 6), rep("oeste", 3), rep("centro", 2))
-subprefeitura <- c("santa", "pirituba", "perus", "jaçana", "supra_norte", "capela do socorro",
-                   "cidade ademar", "vila mariana", "parelheiros", "supra_sul",
-                   "itaquera", "ermelino", "aricanduva", "mooca", "itaim paulista", "supra_leste",
-                   "butanta", "lapa", "supra_oeste", "sé", "supra_centro", "santa", "pirituba", "perus",
-                   "jaçana", "supra_norte", "capela do socorro",
-                   "cidade ademar", "vila mariana", "parelheiros", "supra_sul",
-                   "itaquera", "ermelino", "aricanduva", "mooca", "itaim paulista", "supra_leste",
-                   "butanta", "lapa", "supra_oeste",
-                   "sé", "supra_centro", "santa", "pirituba", "perus", "jaçana", "supra_norte", "capela do socorro",
-                   "cidade ademar", "vila mariana", "parelheiros", "supra_sul",
-                   "itaquera", "ermelino", "aricanduva", "mooca", "itaim paulista", "supra_leste",
-                   "butanta", "lapa", "supra_oeste",
-                   "sé", "supra_centro")
-valor <- seq(1000, 1062)
+(base_da1 %>%
+    left_join(suporte_rateio_regioes, by = c("dotacao", "subprefeitura", "sigla_orgao", "regiao", "distrito", "tipo_regionalizacao", "valor_detalhamento_acao")) %>% 
+    filter(!subprefeitura %in% c("Supra Subprefeitura Leste",
+                          "Supra Subprefeitura Norte",
+                          "Supra Subprefeitura Oeste",
+                          "Supra Subprefeitura Sul")))
 
-# Criando o dataframe
-dados <- tibble(dotacao = dotacao,
-                regiao = regiao,
-                subprefeitura = subprefeitura,
-                valor = valor)
+glimpse(suporte_rateio_regioes)
 
-media_por_grupo <- dados %>%
-  filter(str_detect(subprefeitura, "supra")) %>% 
-  group_by(dotacao, regiao) %>% 
-  summarise(valor_sub = valor / n_distinct(subprefeitura))
 
-dados <- dados %>%
-  left_join(media_por_grupo, by = c("dotacao", "regiao"))
-
-dados <- dados %>%
-  mutate(rateio = ifelse(subprefeitura %in% c("supra_norte", "supra_sul", "supra_leste", "supra_oeste", "supra_centro"),
-                         valor / n_distinct(subprefeitura) * media_valor, valor))
-
+  
 
 
 #acrescentar o gasto proporcial em cada região; em cada dotação
