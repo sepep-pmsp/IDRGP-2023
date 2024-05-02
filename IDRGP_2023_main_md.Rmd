@@ -257,46 +257,81 @@ suporte_rateio_regioes <- base_da1 %>%
                           "Supra Subprefeitura Oeste",
                           "Supra Subprefeitura Sul"))
 
-sum(suporte_rateio_regioes$valor_detalhamento_acao)
+sum(suporte_rateio_regioes$valor_detalhamento_acao) #441164215
 
 n_sub_regioes <- base_da1 %>% 
   filter(!str_detect(subprefeitura, "Supra")) %>% 
   group_by(regiao) %>% 
   summarise(count = n_distinct(subprefeitura))
 
+
+
 (suporte_rateio_regioes <- suporte_rateio_regioes %>% 
   left_join(n_sub_regioes, by = "regiao") %>% 
-  mutate(valor_rateio = valor_detalhamento_acao / count))
+  mutate(valor_rateio = valor_detalhamento_acao / count) %>% 
+  arrange(dotacao))
 
-sum(suporte_rateio_regioes$valor_rateio)
+sum(suporte_rateio_regioes$valor_rateio) #64756605
 
 (suporte_rateio_regioes <- suporte_rateio_regioes %>% 
     select(-subprefeitura, -distrito, -valor_detalhamento_acao))
 
-(teste <- base_da1 %>%
-    left_join(suporte_rateio_regioes, by = c("dotacao", "sigla_orgao", "regiao", "tipo_regionalizacao")))
+colnames(suporte_rateio_regioes)
 
-sum(teste$valor_rateio, na.rm = TRUE)
+(teste <- base_da1 %>%
+  left_join(suporte_rateio_regioes, by = c("dotacao", "sigla_orgao", "regiao", "tipo_regionalizacao")) %>% 
+  replace_na(list(count = 0, valor_rateio = 0)))
+
+sum(teste$valor_rateio, na.rm = TRUE)#169872656
 
 ## Observou-se que teste$valor_rateio e suporte_rateio_regioes$valor_detalhamento_acao possuem valores diferentes.
 ## Isso ocorre, pois uma série de dotações são supra regionais. É necessário, então, complementar a base_da1, com todas
 ## as subprefeituras para todas as dotações, para diluir os valores supra regionais nas respectivas subprefeiutras
 ## de cada região
 
-
+##juntar todas as subprefeituras para todas as dotações
 comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
                  subprefeitura = unique(base_da1$subprefeitura))
 
+
+teste2 <- comp_sub_dot %>% 
+  left_join(teste, by = c("dotacao", "subprefeitura"))
+
+#juntar count e valor_rateio
+c <- base_da1 %>% 
+  arrange(dotacao) %>% 
+  select(-subprefeitura)
+
+teste2 %>% 
+  left_join(c, by = c("dotacao", "sigla_orgao", "regiao", "distrito", "tipo_regionalizacao", "valor_detalhamento_acao"))
+
+#juntar com sigla_orgao, distrito e tipo_regionalizacao
 (a <- base_da1 %>% 
-    full_join(comp_sub_dot, by = c("dotacao", "subprefeitura")) %>% 
-    arrange(dotacao))
+    select(c("dotacao", "sigla_orgao", "tipo_regionalizacao")))
+
+teste2 %>% 
+  left_join(a, by = c("dotacao")) %>% 
+  mutate(sigla_orgao = if_else(is.na(sigla_orgao.x), sigla_orgao.y, sigla_orgao.x),
+         tipo_regionalizacao = if_else(is.na(tipo_regionalizacao.x), tipo_regionalizacao.y, tipo_regionalizacao.x)) %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, tipo_regionalizacao, valor_detalhamento_acao, count, valor_rateio)
+
+
+#juntar regiao
+
+#juntar valor_rateio
+
+base_da1 %>% 
+  distinct(distrito)
+
+colnames(base_da1)
 
 (b <- base_da1 %>% 
     group_by(dotacao) %>% 
-    select(-subprefeitura, -regiao, -valor_detalhamento_acao))
+    select(-subprefeitura, -regiao, -distrito, -valor_detalhamento_acao))
 
 (a <- a %>% 
   left_join(b, by = "dotacao"))
+
 
 (base_da2 <- a %>% 
   mutate(sigla_orgao = if_else(is.na(sigla_orgao.x), sigla_orgao.y, sigla_orgao.x),
@@ -329,20 +364,20 @@ comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
     subprefeitura %in% c("Subprefeitura Sé",
                    "Supra Subprefeitura Centro") ~ "Centro",
     TRUE ~ "Sul"),
-         distrito = if_else(is.na(distrito.x), distrito.y, distrito.x),
-         tipo_regionalizacao = if_else(is.na(tipo_regionalizacao.x), tipo_regionalizacao.y, tipo_regionalizacao.x)) %>% 
-    select(-sigla_orgao.x, -distrito.x, -tipo_regionalizacao.x, -sigla_orgao.y, -distrito.y, -tipo_regionalizacao.y,
-           dotacao, sigla_orgao, subprefeitura, regiao, distrito, tipo_regionalizacao, valor_detalhamento_acao))
+         tipo_regionalizacao = if_else(is.na(tipo_regionalizacao.x), tipo_regionalizacao.y, tipo_regionalizacao.x))%>%
+      select(dotacao, sigla_orgao, subprefeitura, regiao, distrito, tipo_regionalizacao, valor_detalhamento_acao, -distrito, -sigla_orgao.x, -distrito.x, -tipo_regionalizacao.x, -sigla_orgao.y, -distrito.y, -tipo_regionalizacao.y,
+           ))
 
 
 (teste2 <- base_da2 %>%
     left_join(suporte_rateio_regioes, by = c("dotacao", "sigla_orgao", "regiao", "tipo_regionalizacao")))
 
+(teste2 %>% 
+  filter(valor_rateio > 0))
 
-filter(!subprefeitura %in% c("Supra Subprefeitura Leste",
-                          "Supra Subprefeitura Norte",
-                          "Supra Subprefeitura Oeste",
-                          "Supra Subprefeitura Sul")))
+
+suporte_rateio_regioes %>% 
+  filter(dotacao == "04.10.15.452.3011.2.300.33903000.06.1.501.9001.0")
 
 glimpse(suporte_rateio_regioes)
 glimpse(base_da1)
