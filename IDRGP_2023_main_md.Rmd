@@ -155,13 +155,13 @@ Introduzidas as passagens que originaram os dados da execução física e orçam
 
 ```{r}
 #ler a aba totais_metas
-df_pdm1 <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas", skip = 266) %>% 
+(df_pdm1 <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas", skip = 266) %>% 
    dplyr::select(-c("Diferença Soma dos valores proporcionais vs SMAE",
                     "Observações",
                     "...46",
                     "supra",
                     "...48",
-                    "zero"))
+                    "zero")))
 
 #transformar as colunas de subprefeituras e supra subprefeituras em uma única coluna
 df_pdm1 <- df_pdm1 %>% 
@@ -209,7 +209,6 @@ base::names(base_da)
 
 
 #criar coluna com a codificação da dotação orçamentária
-
 base_da1 <- base_da %>% 
   dplyr::mutate(dotacao = base::paste(codigo_orgao,
                                       codigo_unidade,
@@ -237,12 +236,10 @@ base_da1 <- base_da %>%
 
 
 #checar existência de NA
-
 base_da1 %>%
   summarise_all(~ any(is.na(.))) #não há NA
 
 #transformar subprefeitura=="Supra Subprefeitura Centro" em "Subprefeitura Sé"
-
 base_da1 <- base_da1 %>% 
   mutate(subprefeitura = case_when(
     subprefeitura %in% "Supra Subprefeitura Centro" ~ "Subprefeitura Sé",
@@ -250,7 +247,6 @@ base_da1 <- base_da1 %>%
   )
   
 ##Ratear valores de subprefeitura=="Supra Subprefeitura Região X" nas respectivas subprefeituras da Região X
-
 suporte_rateio_regioes <- base_da1 %>% 
   filter(subprefeitura %in% c("Supra Subprefeitura Leste",
                           "Supra Subprefeitura Norte",
@@ -259,12 +255,10 @@ suporte_rateio_regioes <- base_da1 %>%
 
 sum(suporte_rateio_regioes$valor_detalhamento_acao) #441164215
 
-n_sub_regioes <- base_da1 %>% 
+(n_sub_regioes <- base_da1 %>% 
   filter(!str_detect(subprefeitura, "Supra")) %>% 
   group_by(regiao) %>% 
-  summarise(count = n_distinct(subprefeitura))
-
-
+  summarise(count = n_distinct(subprefeitura)))
 
 (suporte_rateio_regioes <- suporte_rateio_regioes %>% 
   left_join(n_sub_regioes, by = "regiao") %>% 
@@ -276,66 +270,25 @@ sum(suporte_rateio_regioes$valor_rateio) #64756605
 (suporte_rateio_regioes <- suporte_rateio_regioes %>% 
     select(-subprefeitura, -distrito, -valor_detalhamento_acao))
 
-colnames(suporte_rateio_regioes)
-
 (teste <- base_da1 %>%
   left_join(suporte_rateio_regioes, by = c("dotacao", "sigla_orgao", "regiao", "tipo_regionalizacao")) %>% 
-  replace_na(list(count = 0, valor_rateio = 0)))
+  replace_na(list(count = 0, valor_rateio = 0)) %>% 
+    distinct())
 
 sum(teste$valor_rateio, na.rm = TRUE)#169872656
 
 ## Observou-se que teste$valor_rateio e suporte_rateio_regioes$valor_detalhamento_acao possuem valores diferentes.
-## Isso ocorre, pois uma série de dotações são supra regionais. É necessário, então, complementar a base_da1, com todas
+## Isso ocorre, pois uma série de dotações são apenas supra regionais. É necessário, então, complementar a base_da1, com todas
 ## as subprefeituras para todas as dotações, para diluir os valores supra regionais nas respectivas subprefeiutras
 ## de cada região
 
-##juntar todas as subprefeituras para todas as dotações
+# juntar todas as subprefeituras para todas as dotações
 comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
                  subprefeitura = unique(base_da1$subprefeitura))
 
-
-teste2 <- comp_sub_dot %>% 
-  left_join(teste, by = c("dotacao", "subprefeitura"))
-
-#juntar count e valor_rateio
-c <- base_da1 %>% 
-  arrange(dotacao) %>% 
-  select(-subprefeitura)
-
-teste2 %>% 
-  left_join(c, by = c("dotacao", "sigla_orgao", "regiao", "distrito", "tipo_regionalizacao", "valor_detalhamento_acao"))
-
-#juntar com sigla_orgao, distrito e tipo_regionalizacao
-(a <- base_da1 %>% 
-    select(c("dotacao", "sigla_orgao", "tipo_regionalizacao")))
-
-teste2 %>% 
-  left_join(a, by = c("dotacao")) %>% 
-  mutate(sigla_orgao = if_else(is.na(sigla_orgao.x), sigla_orgao.y, sigla_orgao.x),
-         tipo_regionalizacao = if_else(is.na(tipo_regionalizacao.x), tipo_regionalizacao.y, tipo_regionalizacao.x)) %>% 
-  select(dotacao, sigla_orgao, subprefeitura, regiao, tipo_regionalizacao, valor_detalhamento_acao, count, valor_rateio)
-
-
-#juntar regiao
-
-#juntar valor_rateio
-
-base_da1 %>% 
-  distinct(distrito)
-
-colnames(base_da1)
-
-(b <- base_da1 %>% 
-    group_by(dotacao) %>% 
-    select(-subprefeitura, -regiao, -distrito, -valor_detalhamento_acao))
-
-(a <- a %>% 
-  left_join(b, by = "dotacao"))
-
-
-(base_da2 <- a %>% 
-  mutate(sigla_orgao = if_else(is.na(sigla_orgao.x), sigla_orgao.y, sigla_orgao.x),
-         regiao = case_when(
+# acrescentar regiao ao objeto comp_sub_dot
+(comp_sub_dot <- comp_sub_dot %>% 
+  mutate(regiao = case_when(
     subprefeitura %in% c("Subprefeitura Aricanduva/Formosa/Carrão",
                    "Subprefeitura Cidade Tiradentes",
                    "Subprefeitura de Guaianases",
@@ -363,36 +316,55 @@ colnames(base_da1)
                    "Supra Subprefeitura Norte") ~ "Norte",
     subprefeitura %in% c("Subprefeitura Sé",
                    "Supra Subprefeitura Centro") ~ "Centro",
-    TRUE ~ "Sul"),
-         tipo_regionalizacao = if_else(is.na(tipo_regionalizacao.x), tipo_regionalizacao.y, tipo_regionalizacao.x))%>%
-      select(dotacao, sigla_orgao, subprefeitura, regiao, distrito, tipo_regionalizacao, valor_detalhamento_acao, -distrito, -sigla_orgao.x, -distrito.x, -tipo_regionalizacao.x, -sigla_orgao.y, -distrito.y, -tipo_regionalizacao.y,
-           ))
+    TRUE ~ "Sul")))
+
+#acrescentar sigla_orgao e tipo_regionalizacao
+(a <- base_da1 %>% 
+    select(c("dotacao", "sigla_orgao", "tipo_regionalizacao")))
+
+comp_sub_dot <- comp_sub_dot %>% 
+  left_join(a, by = "dotacao") %>% 
+  select("dotacao", "sigla_orgao", "subprefeitura", "regiao", "tipo_regionalizacao") %>% 
+  distinct()
 
 
-(teste2 <- base_da2 %>%
-    left_join(suporte_rateio_regioes, by = c("dotacao", "sigla_orgao", "regiao", "tipo_regionalizacao")))
+#juntar valor_detalhamento_acao
+comp_sub_dot <- comp_sub_dot %>% 
+  left_join(base_da1, by = c("dotacao", "sigla_orgao", "subprefeitura", "regiao", "tipo_regionalizacao")) %>% 
+  replace_na(list(valor_detalhamento_acao = 0)) %>% 
+  select(-distrito)
 
-(teste2 %>% 
-  filter(valor_rateio > 0))
+#juntar count e valor_rateio
+glimpse(suporte_rateio_regioes)
 
+comp_sub_dot <- comp_sub_dot %>% 
+  left_join(suporte_rateio_regioes, by = c("dotacao", "sigla_orgao", "regiao", "tipo_regionalizacao")) %>% 
+  distinct() %>% 
+  replace_na(list(count = 0, valor_rateio = 0))
 
-suporte_rateio_regioes %>% 
+comp_sub_dot %>% 
   filter(dotacao == "04.10.15.452.3011.2.300.33903000.06.1.501.9001.0")
 
-glimpse(suporte_rateio_regioes)
-glimpse(base_da1)
-
+# acrescentar coluna somando valor_detalhamento_acao + valor_rateio
+comp_sub_dot <- comp_sub_dot %>% 
+  mutate(valor_liquidado = valor_detalhamento_acao + valor_rateio)
   
+# remover linhas que contém "supra"
+comp_sub_dot <- comp_sub_dot %>% 
+  filter(!str_detect(subprefeitura, fixed("Supra")))
 
 
-#acrescentar o gasto proporcial em cada região; em cada dotação
-
-base_da1 <- base_da1 %>% 
+# acrescentar o gasto proporcial em cada região; em cada dotação
+comp_sub_dot <- comp_sub_dot %>% 
   group_by(dotacao) %>% 
-  mutate(total_valor = sum(valor_detalhamento_acao))
+  mutate(total_valor = sum(valor_liquidado))
 
-base_da1 <- base_da1 %>% 
-  mutate(proporcao = valor_detalhamento_acao/total_valor)
+comp_sub_dot <- comp_sub_dot %>% 
+  mutate(proporcao = valor_liquidado/total_valor)
+
+# criar objeto "base_da2" apenas com colunas de interesse
+base_da2 <- comp_sub_dot %>% 
+  select(-tipo_regionalizacao, -count, -valor_rateio, -total_valor)
 
 
 # criar df a partir de base_da, apenas com as dotações do PdM
@@ -402,7 +374,7 @@ nchar("25.10.13.392.3001.6.371.3390") #=28
 
 base_dotacao_pdm <- unique(df_pdm$DOTACAO) #string com as dotações pdm
 
-base_da_pdm <- base_da1 %>%
+base_da_pdm <- base_da2 %>%
   mutate(dotacao_pdm = case_when(
     dotacao %in% base_dotacao_pdm ~ "s",
     substr(dotacao, 1, 28) %in% substr(base_dotacao_pdm, 1, 28) ~ "s",
@@ -410,10 +382,69 @@ base_da_pdm <- base_da1 %>%
   )) %>% 
   filter(dotacao_pdm == "s")
 
-#checar se todas as dotações somam 100%
+# checar se todas as dotações somam 100%
 base_da_pdm %>% 
   group_by(dotacao) %>% 
   summarise(checagem = sum(proporcao))
+
+# acrescentar na base_da_pdm, valor registrado no SMAE
+readxl::excel_sheets("metas_alteracao_programatica.xlsx")
+
+(b <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas_inf_orgaos", skip = 266) %>%
+    janitor::clean_names() %>% 
+   dplyr::select(orgao:total_smae) %>% 
+    dplyr::filter(meta != 10))
+
+#ajustar dotacoes que não estão com a codificação completa
+b %>% 
+  filter(str_length(dotacao) < 48) #14 situações
+
+#1 14.10.16.451.3002.3.357.44903900.00
+base_da_pdm %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
+
+b <- b %>% 
+  mutate(dotacao = if_else(dotacao == "14.10.16.451.3002.3.357.44903900.00" & nchar(dotacao) <= 48,
+                           "14.10.16.451.3002.3.357.44903900.00.1.500.0003.0",
+                           dotacao))
+
+b %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
+
+
+#2 14.10.16.451.3005.3.355.44903900.00
+base_da_pdm %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00"))
+
+b <- b %>% 
+  mutate(dotacao = if_else(dotacao == "14.10.16.451.3005.3.355.44903900.00" & nchar(dotacao) <= 48,
+                           "14.10.16.451.3005.3.355.44903900.00.1.500.0003.0",
+                           dotacao))
+
+
+#3 14.10.16.482.3005.3.355.44905100.00  #neste caso, há 7 dotações com valores para 4 subprefeituras
+base_da_pdm %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00") & valor_liquidado > 0) %>% 
+  select(dotacao, subprefeitura, valor_liquidado) %>%
+  group_by(subprefeitura) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado))
+
+#4 86.14.16.451.3002.3.357.44903900.03
+#5 98.14.16.482.3002.3.340.44906100.08
+#6 98.14.16.482.3002.3.354.44903900.08
+#7 98.14.16.482.3002.3.354.44905100.08
+#8 98.14.16.482.3005.3.355.44905100.08
+#9 86.14.16.451.3002.3.357.44903900.03
+#10 91.10.16.482.3002.3.356.44903900.08.1.759.8011
+#11 16.10.12.361.3010.3.365.44905100.00.1.500.0003
+#12 98.22.26.453.3009.5.105.44903900.08
+#13 98.22.26.453.3009.5.105.44905100.08
+#14 25.10.13.392.3001.6.371.3390
+
+base_da_pdm %>% 
+  filter(dotacao == "14.10.16.451.3002.3.357.44903900.00")
+
+
 
 
 
