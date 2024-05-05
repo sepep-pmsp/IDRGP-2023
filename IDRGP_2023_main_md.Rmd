@@ -384,30 +384,20 @@ comp_sub_dot %>%
 
 # criar objeto "base_da2" apenas com colunas de interesse
 base_da2 <- comp_sub_dot %>% 
+  mutate(acao_orcamentaria = substr(dotacao, 19, 23)) %>%
   select(-tipo_regionalizacao, -count, -valor_rateio, -total_valor)
 
-
 # criar df a partir de base_da2, apenas com as dotações do PdM
-
 nchar("84.10.10.301.3003.1.525.44905100.00.1.500.9001.1") #=48
 nchar("25.10.13.392.3001.6.371.3390") #=28
 
 base_dotacao_pdm <- unique(df_pdm$DOTACAO) #string com as dotações pdm
 
-base_da_pdm <- base_da2 %>%
-  mutate(dotacao_pdm = case_when(
-    dotacao %in% base_dotacao_pdm ~ "s",
-    substr(dotacao, 1, 28) %in% substr(base_dotacao_pdm, 1, 28) ~ "s",
-    TRUE ~ "n"
-  )) %>% 
-  filter(dotacao_pdm == "s")
+base_dot_pdm <- tibble(
+  dotacao = base_dotacao_pdm,
+  acao_orcamentaria = substr(dotacao, 19, 23)) %>% 
+  filter(!is.na(dotacao))
 
-# checar se todas as dotações somam 100%
-base_da_pdm %>% 
-  group_by(dotacao) %>% 
-  summarise(checagem = sum(proporcao))
-
-# acrescentar na base_da_pdm, valor liquidado em 2023, registrado no SMAE
 readxl::excel_sheets("metas_alteracao_programatica.xlsx")
 
 (base_pdm <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas", skip = 266) %>%
@@ -415,14 +405,34 @@ readxl::excel_sheets("metas_alteracao_programatica.xlsx")
     dplyr::select(orgao:total_smae) %>% 
     dplyr::filter(meta != 10))
 
-total_smae_totais_metas <- sum(base_pdm$total_smae) #3116974852
+y <- base_pdm %>% 
+  select(dotacao, meta)
+
+base_dot_pdm <- base_dot_pdm %>% 
+  full_join(y, by = "dotacao") %>% 
+  distinct()
+
+rm(y)
+
+base_da_pdm <- base_da2 %>% 
+  right_join(base_dot_pdm, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct()
+
+
+# checar se todas as dotações somam 100%
+base_da_pdm %>% 
+  group_by(dotacao) %>% 
+  summarise(checagem = sum(proporcao)) # Necessário tratar NA
+
+# acrescentar na base_da_pdm, valor liquidado em 2023, registrado no SMAE
+total_smae_totais_metas <- sum(base_pdm$total_smae) #3116974852 Necessário ajustar dotações incompletas
 
 # ajustar dotacoes que não estão com a codificação completa
 base_pdm %>% 
   filter(str_length(dotacao) < 48) #13 situações (1 duplicada e 12 distintas)
 
 #1 14.10.16.451.3002.3.357.44903900.00
-base_da_pdm %>% 
+base_da2 %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
 
 base_pdm <- base_pdm %>% 
@@ -430,12 +440,9 @@ base_pdm <- base_pdm %>%
                            "14.10.16.451.3002.3.357.44903900.00.1.500.0003.0",
                            dotacao))
 
-base_pdm %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
-
 
 #2 14.10.16.451.3005.3.355.44903900.00
-base_da_pdm %>% 
+base_da2 %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00"))
 
 base_pdm <- base_pdm %>% 
@@ -445,12 +452,12 @@ base_pdm <- base_pdm %>%
 
 
 #3 14.10.16.482.3005.3.355.44905100.00
-base_da_pdm %>% 
+base_da2 %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00"))
 
 
 # neste caso, há 7 dotações com valores para 4 subprefeituras. Vamos calcular a proporção por dotação para desdobrá-las no objeto "b"
-(caso3_base_pdm <- base_da_pdm %>% 
+(caso3_base_pdm <- base_da2 %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00") & valor_liquidado > 0) %>% 
   select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
@@ -458,11 +465,13 @@ base_da_pdm %>%
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso3_base_b <- base_pdm %>% 
+(caso3_base_b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")))
 
-(caso3_merge <- tibble(orgao = rep(caso3_base_b$orgao, 7),
-               meta = rep(caso3_base_b$meta, 7),
+colnames(caso3_base_b)
+
+(caso3_merge <- tibble(orgao = rep(caso3_base_b$sigla_orgao, 7),
+               meta = rep(caso3_base_b$meta , 7),
                txt_meta = rep(caso3_base_b$txt_meta, 7),
                dotacao = caso3_base_pdm$dotacao,
                total_smae.x = rep(caso3_base_b$total_smae, 7),
@@ -721,6 +730,14 @@ rm(list = c("caso12_base_b", "caso12_base_pdm", "caso12_merge"))
 
 sum(base_pdm$total_smae) == total_smae_totais_metas
 
+x <- base_pdm %>% 
+  select(meta, dotacao, orgao, total_smae) %>% 
+  group_by(meta, dotacao, orgao) %>% 
+  summarise(total_smae = sum(total_smae))
+
+sum(x$total_smae) == total_smae_totais_metas
+
+rm(x)
 
 # acrescentar coluna total_inf_orgaos
 
@@ -806,19 +823,39 @@ g <- base_pdm %>%
 
 sum(g$total_smae) == total_smae_totais_metas
 
-base_pdm %>% 
-  filter(duplicated(.))
-
-filter(base_pdm, is.na(valor_da_inf_orgao.y))
-
 base_pdm <- base_pdm %>% 
   mutate(valor_da_inf_orgao = valor_da_inf_orgao.x) %>% 
   select(-valor_da_inf_orgao.x, -valor_da_inf_orgao.y)
 
+rm(list = c("g", "b"))
 
 # mesclar bases "base_pdm" e "base_da_pdm"
 glimpse(base_pdm)
 glimpse(base_da_pdm)
+
+a <- base_pdm %>% 
+  select(dotacao, meta) %>% 
+  distinct()
+
+b <- base_da_pdm %>% 
+  left_join(a, by = "dotacao") %>% 
+  distinct() %>% 
+  mutate(acao_orcamentaria = substr(dotacao, 19,23)) %>% 
+  group_by(acao_orcamentaria) %>% 
+  arrange(acao_orcamentaria, meta, dotacao, sigla_orgao, subprefeitura) %>% 
+  select(meta, dotacao, acao_orcamentaria, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao) %>% 
+  filter(valor_liquidado > 0) # necessário tratar NA da coluna metas
+
+c <- b %>% 
+  arrange(dotacao)
+
+
+
+b %>% 
+  select(meta, dotacao) %>% 
+  filter(is.na(meta)) %>% 
+  distinct()
+
 
 base_pdm_completa <- base_da_pdm %>% 
   full_join(base_pdm, by = c("dotacao", "subprefeitura")) %>% 
@@ -834,14 +871,123 @@ i <- base_pdm_completa %>%
 
 sum(i$total_smae, na.rm = TRUE) == total_smae_totais_metas
 
-
 rm(list = c("b", "f", "g", "h", "i"))
 
 
 # acrescentar valor de exec_fisica
+url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alter o link
 
+response <- httr::GET(url_balanco) # Fazendo a solicitação GET
+
+content <- httr::content(response, as = "raw") # Extraindo o conteúdo da resposta como um objeto raw
+
+temp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
+
+writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
+
+(base_exec_fisica <- readxl::read_excel(temp_file, sheet = "principal", skip = 2) %>% 
+    janitor::clean_names())
+
+(base_exec_fisica <- base_exec_fisica %>% 
+  rename(meta = x1,
+         txt_meta = x2,
+         indicador = x3,
+         objetivo_estrategico = x4,
+         iniciativas = x5,
+         eixo = x6,
+         ods = x7,
+         orgao = x8)) #necessário ajustar o padrão de pontuação (ora milhares está separado por "." ora por "," ora está sem separação)
+
+
+(base_exec_fisica_reg <- readxl::read_excel(temp_file, sheet = "regionalização", skip = 1) %>% 
+    janitor::clean_names())
+
+(base_exec_fisica_reg <- base_exec_fisica_reg %>% 
+  rename(meta = x1,
+         subprefeitura = x2)) # necessário padronizar nomes das subprefeituras conforme base_pdm_completa e preencher coluna meta, cujas células estão mescladas na planilha original
+
+
+# Padronizar nome das subprefeituras conforme base_pdm_completa
+(base_exec_fisica_reg <- base_exec_fisica_reg %>% 
+  mutate(subprefeitura = case_when(
+           subprefeitura %in% "Aricanduva" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
+           subprefeitura %in% "Butantã" ~ "Subprefeitura Butantã",
+           subprefeitura %in% "Campo Limpo" ~ "Subprefeitura Campo Limpo",
+           subprefeitura %in% "Capela do Socorro" ~ "Subprefeitura Capela do Socorro",
+           subprefeitura %in% "Casa Verde" ~ "Subprefeitura Casa Verde/Cachoeirinha",
+           subprefeitura %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
+           subprefeitura %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
+           subprefeitura %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
+           subprefeitura %in% "Freguesia/Brasilândia" ~ "Subprefeitura Ermelino Matarazzo",
+           subprefeitura %in% "Guaianases" ~ "Subprefeitura de Guaianases",
+           subprefeitura %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
+           subprefeitura %in% "Itaim Paulista" ~ "Subprefeitura Ipiranga",
+           subprefeitura %in% "Itaquera" ~ "Subprefeitura Itaquera",
+           subprefeitura %in% "Jabaquara" ~ "Subprefeitura Itaquera",
+           subprefeitura %in% "Jaçanã/Tremembé" ~ "Subprefeitura Jaçanã/Tremembé",
+           subprefeitura %in% "Lapa" ~ "Subprefeitura Lapa",
+           subprefeitura %in% "M'Boi Mirim" ~ "Subprefeitura M'Boi Mirim",
+           subprefeitura %in% "Mooca" ~ "Subprefeitura Mooca",
+           subprefeitura %in% "Parelheiros" ~ "Subprefeitura Parelheiros",
+           subprefeitura %in% "Penha" ~ "Subprefeitura Penha",
+           subprefeitura %in% "Perus/Anhanguera" ~ "Subprefeitura Perus/Anhanguera",
+           subprefeitura %in% "Pinheiros" ~ "Subprefeitura Pinheiros",
+           subprefeitura %in% "Pirituba/Jaraguá" ~ "Subprefeitura Pirituba/Jaraguá",
+           subprefeitura %in% "Santana/Tucuruvi" ~ "Subprefeitura Santana/Tucuruvi",
+           subprefeitura %in% "Santo Amaro" ~ "Subprefeitura Santo Amaro",
+           subprefeitura %in% "São Mateus" ~ "Subprefeitura São Mateus",
+           subprefeitura %in% "São Miguel Paulista" ~ "Subprefeitura São Miguel Paulista",
+           subprefeitura %in% "Sapopemba" ~ "Subprefeitura Sapopemba",
+           subprefeitura %in% "Sé" ~ "Subprefeitura Sé",
+           subprefeitura %in% "Vila Maria/Vila Guilherme" ~ "Subprefeitura Vila Maria/Vila Guilherme",
+           subprefeitura %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
+           TRUE ~ "Subprefeitura de Vila Prudente")))
+
+# Substituir NA na coluna meta
+(base_exec_fisica_reg <- base_exec_fisica_reg %>% 
+  fill(meta, .direction = "down"))
+
+# Selecionar apenas as colunas meta, subprefeitura e x2023
+(base_exec_fisica_reg_23 <- base_exec_fisica_reg %>% 
+  select(meta, subprefeitura, x2023))
+
+# Juntar com base_pdm_completa
+(a <- base_pdm_completa %>% 
+  left_join(base_exec_fisica_reg_23, by = c("meta", "subprefeitura")) %>% 
+    distinct())
+
+glimpse(base_exec_fisica_reg_23)
+glimpse(base_pdm_completa)
+
+b <- base_pdm_completa %>% 
+  group_by(meta, dotacao) %>% 
+  summarise(valor_da = sum(valor_liquidado),
+            valor_smae = mean(total_smae),
+            valor_inf_orgao = sum(valor_da_inf_orgao))
+
+sum(b$valor_smae, na.rm = TRUE)
+
+(c <- base_pdm_completa %>% 
+  filter(dotacao %in% d) %>% 
+  arrange(meta, dotacao) %>% 
+  select(meta, dotacao, subprefeitura, valor_liquidado, total_smae, valor_da_inf_orgao))
+
+e <- base_pdm_completa %>% 
+  group_by(dotacao) %>% 
+  arrange(dotacao, meta) %>% 
+  fill(meta, .direction = "down")
+
+?fill()
+
+c %>% 
+  filter(dotacao == "07.10.16.482.3002.3.340.44906100.08.2.759.1224.1")
+
+
+d <- c$dotacao
+
+a %>% 
+  filter(meta == 3)
 # acrescentar coluna de estimativa (total_liquidado / exec_fisica)
-
 
 
 
