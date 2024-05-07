@@ -140,8 +140,8 @@ Nesta seção, detalhamos os processos de obtenção e transformação dos dados
 Os dados de execução física são, nas metas selecionadas para o IDRGP 2023, desagregadas em nível regional (subprefeitura), podendo, dessa forma, serem extraídos diretamente do SMAE. Um relatório foi extraído em 04/03/2024 e registrado na aba "execucao_regionalizada, do documento"metas_alteracao_programatica.xlsx". Os dados de execução orçamentária correspondem à liquidação das dotações orçamentárias que abarcam despesas vinculadas ao Programa de Metas. Para a desagregação regional destes dados, lançou-se mão de duas estratégias:
 
 -   Coleta de dados diretamente com os órgãos, nos casos das Metas 3, 4, 5, 7, 8, 9, 78 e 79, sob responsabilidade da Secretaria Municpal de Saúde (SMS) e da Meta 58, conduzida pela Secretaria Municipal de Cultura (SMC);
-- Cálculo da razão entre o valor liquidado e a execução física, por região, para a Meta 17;
--   Regionalização a partir do "Detalhamento da Ação", por meio de consulta a dados publicados pela Secretaria da Fazenda (SF). A base de dados da regionalização da execução orçamentária do exercício de 2023, pode ser extraída por meio do portal: \<[[https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\){.uri}]([https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\){.uri}){.uri}\>, nos formatos "[.csv](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv)", "[.xlsx](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.xlsx)", "[.ods](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.ods)" ou "[.json](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.json)"
+-   Cálculo da razão entre o valor liquidado e a execução física, por região, para a Meta 17;
+-   Regionalização a partir do "Detalhamento da Ação", por meio de consulta a dados publicados pela Secretaria da Fazenda (SF). A base de dados da regionalização da execução orçamentária do exercício de 2023, pode ser extraída por meio do portal: \<[[https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\){.uri}]([https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php)%7B.uri%7D){.uri}\>, nos formatos "[.csv](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv)", "[.xlsx](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.xlsx)", "[.ods](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.ods)" ou "[.json](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.json)"
 
 Para regionalização da execução orçamentária das metas consideradas para o monitoramento do IDRGP 2023, utilizamos a base no formato ".xlsx". Manipulamos a planilha de forma que cada linha correspondesse a uma dotação orçamentária e, em colunas, obtivessemos valor correspondente para cada uma das subprefeituras (ou outros níveis de regionalização).
 
@@ -154,6 +154,8 @@ Para que não houvesse perda de dados ao inserir as informações fornecidas dir
 Introduzidas as passagens que originaram os dados da execução física e orçamentária do Programa de Metas, apresentamos, a seguir, as manipulações necessárias para a análise dos dados.
 
 ```{r}
+
+
 #ler a aba totais_metas
 (df_pdm1 <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas", skip = 266) %>% 
    dplyr::select(-c("Diferença Soma dos valores proporcionais vs SMAE",
@@ -211,7 +213,8 @@ c <- df_pdm %>%
 sum(c$TOTAL_SMAE, na.rm = TRUE) #3116974852
 
 ```
-Ao consolidar a base de dados do Programa de Metas, identificou-se alguma movimentação equivocada que acrescentou R$ 55.488.642 tanto na coluna valor_da quanto na coluna valor_da_inf_orgao. O bloco, a seguir, busca explorar e sanear o problema.
+
+Ao consolidar a base de dados do Programa de Metas, identificou-se alguma movimentação equivocada que acrescentou R\$ 55.488.642 tanto na coluna valor_da quanto na coluna valor_da_inf_orgao. O bloco, a seguir, busca explorar e sanear o problema.
 
 ```{r paged.print=TRUE}
 
@@ -292,6 +295,8 @@ sum(suporte_rateio_regioes$valor_rateio) #64756605
 
 sum(teste$valor_rateio, na.rm = TRUE)#169872656
 
+rm("teste")
+
 ## Observou-se que teste$valor_rateio e suporte_rateio_regioes$valor_detalhamento_acao possuem valores diferentes.
 ## Isso ocorre, pois uma série de dotações são apenas supra regionais. É necessário, então, complementar a base_da1, com todas
 ## as subprefeituras para todas as dotações, para diluir os valores supra regionais nas respectivas subprefeiutras
@@ -342,6 +347,7 @@ comp_sub_dot <- comp_sub_dot %>%
   select("dotacao", "sigla_orgao", "subprefeitura", "regiao", "tipo_regionalizacao") %>% 
   distinct()
 
+rm(a)
 
 #juntar valor_detalhamento_acao
 comp_sub_dot <- comp_sub_dot %>% 
@@ -387,7 +393,7 @@ base_da2 <- comp_sub_dot %>%
   mutate(acao_orcamentaria = substr(dotacao, 19, 23)) %>%
   select(-tipo_regionalizacao, -count, -valor_rateio, -total_valor)
 
-# criar df a partir de base_da2, apenas com as dotações do PdM
+# criar df a partir de base_da2, base_da_pdm, apenas com as dotações do PdM - esta é a base que nos interessa, pois tem as dotações com valores de liquidação registradas no smae, as proporções do DA e a regionalização
 nchar("84.10.10.301.3003.1.525.44905100.00.1.500.9001.1") #=48
 nchar("25.10.13.392.3001.6.371.3390") #=28
 
@@ -400,19 +406,19 @@ base_dot_pdm <- tibble(
 
 readxl::excel_sheets("metas_alteracao_programatica.xlsx")
 
+
+# trazer informação do valor liquidado registrado no smae para acrescentar tal informação a base_dot_pdm
 (base_pdm <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas", skip = 266) %>%
     janitor::clean_names() %>% 
     dplyr::select(orgao:total_smae) %>% 
-    dplyr::filter(meta != 10))
-
-y <- base_pdm %>% 
-  select(dotacao, meta)
+    dplyr::filter(meta != 10 & total_smae != 0))
 
 base_dot_pdm <- base_dot_pdm %>% 
-  full_join(y, by = "dotacao") %>% 
-  distinct()
+  full_join(base_pdm, by = "dotacao") %>% 
+  distinct() %>% 
+  filter(!is.na(total_smae))
 
-rm(y)
+rm("base_pdm")
 
 base_da_pdm <- base_da2 %>% 
   right_join(base_dot_pdm, by = c("dotacao", "acao_orcamentaria")) %>% 
@@ -425,332 +431,302 @@ base_da_pdm %>%
   summarise(checagem = sum(proporcao)) # Necessário tratar NA
 
 # acrescentar na base_da_pdm, valor liquidado em 2023, registrado no SMAE
-total_smae_totais_metas <- sum(base_pdm$total_smae) #3116974852 Necessário ajustar dotações incompletas
+total_smae_totais_metas <- sum(base_dot_pdm$total_smae) #3116974852 Necessário ajustar dotações incompletas
 
 # ajustar dotacoes que não estão com a codificação completa
-base_pdm %>% 
-  filter(str_length(dotacao) < 48) #13 situações (1 duplicada e 12 distintas)
+base_da_pdm %>% 
+  filter(str_length(dotacao) < 48) #8 situações (1 duplicada)
 
-#1 14.10.16.451.3002.3.357.44903900.00
-base_da2 %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
-
-base_pdm <- base_pdm %>% 
-  mutate(dotacao = if_else(dotacao == "14.10.16.451.3002.3.357.44903900.00" & nchar(dotacao) <= 48,
-                           "14.10.16.451.3002.3.357.44903900.00.1.500.0003.0",
-                           dotacao))
-
-
-#2 14.10.16.451.3005.3.355.44903900.00
-base_da2 %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00"))
-
-base_pdm <- base_pdm %>% 
-  mutate(dotacao = if_else(dotacao == "14.10.16.451.3005.3.355.44903900.00" & nchar(dotacao) <= 48,
-                           "14.10.16.451.3005.3.355.44903900.00.1.500.0003.0",
-                           dotacao))
+#1 14.10.16.482.3005.3.355.44905100.00	
+#2 86.14.16.451.3002.3.357.44903900.03	
+#3 98.14.16.482.3002.3.340.44906100.08	
+#4 98.14.16.482.3002.3.354.44903900.08	
+#5 98.14.16.482.3002.3.354.44905100.08	
+#6 98.14.16.482.3005.3.355.44905100.08	
+#7 91.10.16.482.3002.3.356.44903900.08.1.759.8011
 
 
-#3 14.10.16.482.3005.3.355.44905100.00
+#1 14.10.16.482.3005.3.355.44905100.00
 base_da2 %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00"))
 
 
 # neste caso, há 7 dotações com valores para 4 subprefeituras. Vamos calcular a proporção por dotação para desdobrá-las no objeto "b"
-(caso3_base_pdm <- base_da2 %>% 
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso3_base_b <- base_da_pdm %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")))
 
-colnames(caso3_base_b)
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
 
-(caso3_merge <- tibble(orgao = rep(caso3_base_b$sigla_orgao, 7),
-               meta = rep(caso3_base_b$meta , 7),
-               txt_meta = rep(caso3_base_b$txt_meta, 7),
-               dotacao = caso3_base_pdm$dotacao,
-               total_smae.x = rep(caso3_base_b$total_smae, 7),
-               prop = caso3_base_pdm$prop,
-               total_smae.y = total_smae.x * prop))
+(d <- tibble(dotacao = a$dotacao,
+                       prop = a$prop,
+                       acao_orcamentaria = rep(b$acao_orcamentaria, 7),
+                       orgao = rep(b$orgao, 7),
+                       meta = rep(b$meta , 7),
+                       txt_meta = rep(b$txt_meta, 7),
+                       total_smae.x = rep(b$total_smae, 7),
+                       total_smae.y = total_smae.x * prop))
 
-caso3_merge <- caso3_merge %>% 
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")) %>%
-  bind_rows(caso3_merge)
+  bind_rows(d)
 
-rm(list = c("caso3_base_b", "caso3_base_pdm", "caso3_merge"))
+rm(list = c("a", "b", "c",  "d"))
 
-#4 86.14.16.451.3002.3.357.44903900.03
-(caso4_base_pdm <- base_da_pdm %>% 
+#2 86.14.16.451.3002.3.357.44903900.03
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso4_base_b <- base_pdm %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")))
 
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
 
-(caso4_merge <- tibble(orgao = rep(caso4_base_b$orgao, 2),
-               meta = rep(caso4_base_b$meta, each = 2),
-               txt_meta = rep(caso4_base_b$txt_meta, each = 2),
-               dotacao = rep(caso4_base_pdm$dotacao, 2),
-               total_smae.x = rep(caso4_base_b$total_smae, each = 2),
-               prop = rep(caso4_base_pdm$prop, 2),
-               total_smae.y = total_smae.x * prop))
+# como há duas metas, vamos usar a funcação rep com argument each
+(d <- tibble(dotacao = rep(a$dotacao, 2),
+                       prop = rep(a$prop, 2),
+                       acao_orcamentaria = rep(b$acao_orcamentaria, each = 2),
+                       orgao = rep(b$orgao, each = 2),
+                       meta = rep(b$meta , each = 2),
+                       txt_meta = rep(b$txt_meta, each = 2),
+                       total_smae.x = rep(b$total_smae, each = 2),
+                       total_smae.y = total_smae.x * prop))
 
-sum(caso4_merge$total_smae.y)
-
-caso4_merge <- caso4_merge %>% 
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")) %>%
-  bind_rows(caso4_merge)
+  bind_rows(d)
 
-rm(list = c("caso4_base_b", "caso4_base_pdm", "caso4_merge"))
+rm(list = c("a", "b", "c",  "d"))
 
-#5 98.14.16.482.3002.3.340.44906100.08
-(caso5_base_pdm <- base_da_pdm %>% 
+#3 98.14.16.482.3002.3.340.44906100.08
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.340\\.44906100\\.08") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso5_base_b <- base_pdm %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.340\\.44906100\\.08")))
 
-(caso5_merge <- tibble(orgao = rep(caso5_base_b$orgao, 2),
-               meta = rep(caso5_base_b$meta, 2),
-               txt_meta = rep(caso5_base_b$txt_meta, 2),
-               dotacao = rep(caso5_base_pdm$dotacao),
-               total_smae.x = rep(caso5_base_b$total_smae, 2),
-               prop = rep(caso5_base_pdm$prop),
-               total_smae.y = total_smae.x * prop))
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
 
-caso5_merge <- caso5_merge %>% 
+(d <- tibble(dotacao = a$dotacao,
+                       prop = a$prop,
+                       acao_orcamentaria = rep(b$acao_orcamentaria, 2),
+                       orgao = rep(b$orgao, 2),
+                       meta = rep(b$meta , 2),
+                       txt_meta = rep(b$txt_meta, 2),
+                       total_smae.x = rep(b$total_smae, 2),
+                       total_smae.y = total_smae.x * prop))
+
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.340\\.44906100\\.08")) %>%
-  bind_rows(caso5_merge)
+  bind_rows(d)
 
-rm(list = c("caso5_base_b", "caso5_base_pdm", "caso5_merge"))
+rm(list = c("a", "b", "c",  "d"))
 
-#6 98.14.16.482.3002.3.354.44903900.08
-(caso6_base_pdm <- base_da_pdm %>% 
+#4 98.14.16.482.3002.3.354.44903900.08
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44903900\\.08") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso6_base_b <- base_pdm %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44903900\\.08")))
 
-(caso6_merge <- tibble(orgao = caso6_base_b$orgao,
-                       meta = caso6_base_b$meta,
-                       txt_meta = caso6_base_b$txt_meta,
-                       dotacao = caso6_base_pdm$dotacao,
-                       total_smae.x = caso6_base_b$total_smae,
-                       prop = caso6_base_pdm$prop,
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
+
+(d <- tibble(dotacao = a$dotacao,
+                       prop = a$prop,
+                       acao_orcamentaria = b$acao_orcamentaria,
+                       orgao = b$orgao,
+                       meta = b$meta,
+                       txt_meta = b$txt_meta,
+                       total_smae.x = b$total_smae,
                        total_smae.y = total_smae.x * prop))
 
-caso6_merge <- caso6_merge %>% 
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44903900\\.08")) %>%
-  bind_rows(caso6_merge)
+  bind_rows(d)
 
-rm(list = c("caso6_base_b", "caso6_base_pdm", "caso6_merge"))
+rm(list = c("a", "b", "c",  "d"))
 
-
-#7 98.14.16.482.3002.3.354.44905100.08
-(caso7_base_pdm <- base_da_pdm %>% 
+#5 98.14.16.482.3002.3.354.44905100.08	
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44905100\\.08") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso7_base_b <- base_pdm %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44905100\\.08")))
 
-(caso7_merge <- tibble(orgao = rep(caso7_base_b$orgao, 2),
-                       meta = rep(caso7_base_b$meta, 2),
-                       txt_meta = rep(caso7_base_b$txt_meta, 2),
-                       dotacao = caso7_base_pdm$dotacao,
-                       total_smae.x = rep(caso7_base_b$total_smae, 2),
-                       prop = caso7_base_pdm$prop,
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
+
+(d <- tibble(dotacao = a$dotacao,
+                       prop = a$prop,
+                       acao_orcamentaria = rep(b$acao_orcamentaria, 2),
+                       orgao = rep(b$orgao, 2),
+                       meta = rep(b$meta, 2),
+                       txt_meta = rep(b$txt_meta, 2),
+                       total_smae.x = rep(b$total_smae, 2),
                        total_smae.y = total_smae.x * prop))
 
-caso7_merge <- caso7_merge %>% 
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44905100\\.08")) %>%
-  bind_rows(caso7_merge)
+  bind_rows(d)
 
-rm(list = c("caso7_base_b", "caso7_base_pdm", "caso7_merge"))
+rm(list = c("a", "b", "c",  "d"))
 
-#8 98.14.16.482.3005.3.355.44905100.08
-(caso8_base_pdm <- base_da_pdm %>% 
+#6 98.14.16.482.3005.3.355.44905100.08	
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.08") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso8_base_b <- base_pdm %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.08")))
 
-(caso8_merge <- tibble(orgao = rep(caso8_base_b$orgao, 2),
-                       meta = rep(caso8_base_b$meta, 2),
-                       txt_meta = rep(caso8_base_b$txt_meta, 2),
-                       dotacao = caso8_base_pdm$dotacao,
-                       total_smae.x = rep(caso8_base_b$total_smae, 2),
-                       prop = caso8_base_pdm$prop,
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
+
+(d <- tibble(dotacao = a$dotacao,
+                       prop = a$prop,
+                       acao_orcamentaria = rep(b$acao_orcamentaria, 2),
+                       orgao = rep(b$orgao, 2),
+                       meta = rep(b$meta, 2),
+                       txt_meta = rep(b$txt_meta, 2),
+                       total_smae.x = rep(b$total_smae, 2),
                        total_smae.y = total_smae.x * prop))
 
-caso8_merge <- caso8_merge %>% 
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.08")) %>%
-  bind_rows(caso8_merge)
+  bind_rows(d)
 
-rm(list = c("caso8_base_b", "caso8_base_pdm", "caso8_merge"))
+rm(list = c("a", "b", "c",  "d"))	
 
-
-#9 91.10.16.482.3002.3.356.44903900.08.1.759.8011
-base_da_pdm %>% 
-  filter(str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08"))
-
-base_pdm <- base_pdm %>% 
-  mutate(dotacao = if_else(dotacao == "91.10.16.482.3002.3.356.44903900.08.1.759.8011" & nchar(dotacao) <= 48,
-                           "91.10.16.482.3002.3.356.44903900.08.1.759.8011.0",
-                           dotacao))
-
-#10 16.10.12.361.3010.3.365.44905100.00.1.500.0003
-base_da_pdm %>% 
-  filter(str_detect(dotacao, "^16\\.10\\.12\\.361\\.3010\\.3\\.365\\.44905100\\.00"))
-
-base_pdm <- base_pdm %>% 
-  mutate(dotacao = if_else(dotacao == "16.10.12.361.3010.3.365.44905100.00.1.500.0003" & nchar(dotacao) <= 48,
-                           "16.10.12.361.3010.3.365.44905100.00.1.500.0003.0",
-                           dotacao))
-
-
-#11 98.22.26.453.3009.5.105.44903900.08
-base_da_pdm %>% 
-  filter(str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44903900\\.08"))
-
-(caso11_base_pdm <- base_da_pdm %>% 
-  filter(str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44903900\\.08") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
+#7 91.10.16.482.3002.3.356.44903900.08.1.759.8011
+(a <- base_da2 %>% 
+  filter(str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08\\.1\\.759\\.8011") & valor_liquidado > 0) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso11_base_b <- base_pdm %>% 
-  filter(str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44903900\\.08")))
+(b <- base_da_pdm %>% 
+  filter(str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08\\.1\\.759\\.8011")))
 
-(caso11_merge <- tibble(orgao = rep(caso11_base_b$orgao, 2),
-                       meta = rep(caso11_base_b$meta, 2),
-                       txt_meta = rep(caso11_base_b$txt_meta, 2),
-                       dotacao = caso11_base_pdm$dotacao,
-                       total_smae.x = rep(caso11_base_b$total_smae, 2),
-                       prop = caso11_base_pdm$prop,
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
+
+(d <- tibble(dotacao = a$dotacao,
+                       prop = a$prop,
+                       acao_orcamentaria = rep(b$acao_orcamentaria),
+                       orgao = rep(b$orgao),
+                       meta = rep(b$meta),
+                       txt_meta = rep(b$txt_meta),
+                       total_smae.x = rep(b$total_smae),
                        total_smae.y = total_smae.x * prop))
 
-caso11_merge <- caso11_merge %>% 
+d <- d %>% 
   rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
+  select(-total_smae.x, - prop)
 
-base_pdm <- base_pdm %>% 
-  filter(!str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44903900\\.08")) %>%
-  bind_rows(caso11_merge)
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
 
-rm(list = c("caso11_base_b", "caso11_base_pdm", "caso11_merge"))
+base_da_pdm <- base_da_pdm %>% 
+  filter(!str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08\\.1\\.759\\.8011")) %>%
+  bind_rows(d)
 
-#12 98.22.26.453.3009.5.105.44905100.08
-base_da_pdm %>% 
-  filter(str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44905100\\.08"))
-
-(caso12_base_pdm <- base_da_pdm %>% 
-  filter(str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44905100\\.08") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
-  group_by(dotacao) %>% 
-  summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
-  mutate(total_valor = sum(valor_liquidado),
-         prop = valor_liquidado / total_valor))
-
-(caso12_base_b <- base_pdm %>% 
-  filter(str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44905100\\.08")))
-
-(caso12_merge <- tibble(orgao = rep(caso12_base_b$orgao, 3),
-                       meta = rep(caso12_base_b$meta, 3),
-                       txt_meta = rep(caso12_base_b$txt_meta, 3),
-                       dotacao = caso12_base_pdm$dotacao,
-                       total_smae.x = rep(caso12_base_b$total_smae, 3),
-                       prop = caso12_base_pdm$prop,
-                       total_smae.y = total_smae.x * prop))
-
-caso12_merge <- caso12_merge %>% 
-  rename(total_smae = total_smae.y) %>% 
-  select(-total_smae.x, -prop)
-
-base_pdm <- base_pdm %>% 
-  filter(!str_detect(dotacao, "^98\\.22\\.26\\.453\\.3009\\.5\\.105\\.44905100\\.08")) %>%
-  bind_rows(caso12_merge)
-
-rm(list = c("caso12_base_b", "caso12_base_pdm", "caso12_merge"))
-
-sum(base_pdm$total_smae) == total_smae_totais_metas
-
-x <- base_pdm %>% 
-  select(meta, dotacao, orgao, total_smae) %>% 
-  group_by(meta, dotacao, orgao) %>% 
-  summarise(total_smae = sum(total_smae))
-
-sum(x$total_smae) == total_smae_totais_metas
-
-rm(x)
+rm(list = c("a", "b", "c",  "d"))	
 
 # acrescentar coluna total_inf_orgaos
 
 #ler a aba totais_metas_inf_orgaos
-b <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas_inf_orgaos", skip = 266) %>% 
+x <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas_inf_orgaos", skip = 266) %>% 
     dplyr::select(-c("Diferença Soma dos valores proporcionais vs SMAE", "Observações")) %>% 
     dplyr::rename("SE+SUPRACENTRO" = "SE+SUPRA_CENTRO") #para padronizar os nomes dessas colunas
 
-total_smae_valor_inf_orgaos <- sum(b$TOTAL_SMAE) #2760454999.4
-
-
 #transformar as colunas de subprefeituras e supra subprefeituras em uma única coluna
-(b <- b %>%
+(x <- x %>%
   tidyr::pivot_longer(
       cols = c("Subprefeitura Aricanduva/Formosa/Carrão":"SE+SUPRACENTRO"),
       names_to = "subprefeitura",
@@ -759,75 +735,61 @@ total_smae_valor_inf_orgaos <- sum(b$TOTAL_SMAE) #2760454999.4
     dplyr::select(orgao, meta, txt_meta, dotacao, subprefeitura, total_smae, valor_da_inf_orgao) %>% 
   filter(orgao %in% c("SMS", "SMC") & subprefeitura != "Subprefeitura Sé"))
 
-b <- b %>% 
+x <- x %>% 
   mutate(subprefeitura = if_else(subprefeitura %in% "SE+SUPRACENTRO", "Subprefeitura Sé", subprefeitura)) %>% 
   filter(subprefeitura != "SE+SUPRACENTRO" & valor_da_inf_orgao != 0)
 
-b %>% 
-  filter(str_length(dotacao) < 48) #1 situações
+filter(x, str_length(dotacao) < 48)
+#1 situação
 
 #1 25.10.13.392.3001.6.371.3390
-base_da_pdm %>% 
-  filter(str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390"))
-
-(caso13_base_pdm <- base_da_pdm %>% 
+(a <- base_da2 %>% 
   filter(str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390") & valor_liquidado > 0) %>% 
-  select(dotacao, subprefeitura, valor_liquidado) %>% 
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
          prop = valor_liquidado / total_valor))
 
-(caso13_base_b <- b %>% 
+(b <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390")))
 
-(caso13_merge <- tibble(orgao = rep(caso13_base_b$orgao, each = 4),
-                       meta = rep(caso13_base_b$meta, each = 4),
-                       txt_meta = rep(caso13_base_b$txt_meta, each = 4),
-                       dotacao = rep(caso13_base_pdm$dotacao, 6),
-                       subprefeitura = rep(caso13_base_b$subprefeitura, each = 4),
-                       total_smae.x = rep(caso13_base_b$total_smae, each = 4),
-                       prop = rep(caso13_base_pdm$prop, 6),
-                       valor = rep(caso13_base_b$valor_da_inf_orgao, each = 4),
-                       total_smae.y = valor * prop))
+c <- base_da2 %>% 
+  filter(dotacao %in% a$dotacao)
 
-caso13_merge <- caso13_merge %>% 
-  rename(total_smae = total_smae.x,
-         valor_da_inf_orgao = total_smae.y) %>% 
-  select(-prop, -valor)
+(d <- tibble(dotacao = rep(a$dotacao, each = 32),
+                       prop = rep(a$prop, each = 32),
+                       acao_orcamentaria = rep(b$acao_orcamentaria, 2),
+                       orgao = rep(b$orgao, 2),
+                       meta = rep(b$meta, 2),
+                       txt_meta = rep(b$txt_meta, 2),
+                       total_smae.x = rep(b$total_smae, 2),
+                       total_smae.y = total_smae.x * prop))
 
-b <- b %>% 
+d <- d %>% 
+  rename(total_smae = total_smae.y) %>% 
+  select(-total_smae.x, - prop)
+
+d <- d %>% 
+  left_join(c, by = c("dotacao", "acao_orcamentaria")) %>% 
+  distinct() %>% 
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao, valor_liquidado, proporcao, acao_orcamentaria, orgao, meta, txt_meta, total_smae)
+
+base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390")) %>%
-  bind_rows(caso13_merge)
+  bind_rows(d)
 
-rm(list = c("caso13_base_b", "caso13_base_pdm", "caso13_merge"))
+rm(list = c("a", "b", "c",  "d"))
 
-# juntar bases "b" e "base_pdm"
-b <- b %>% 
-  select(-total_smae)
+# Trazer informações do total_inf_orgao
+readxl::excel_sheets("metas_alteracao_programatica.xlsx")
 
-base_pdm <- base_pdm %>% 
-  left_join(b, by = c("orgao", "meta", "txt_meta", "dotacao")) %>% 
-  replace_na(list(valor_da_inf_orgao = 0)) %>% 
-  distinct()
 
-base_pdm <- base_pdm %>% 
-  left_join(b, by = c("orgao", "meta", "txt_meta", "dotacao", "subprefeitura")) %>% 
-  replace_na(list(valor_da_inf_orgao = 0)) %>% 
-  distinct()
 
-g <- base_pdm %>% 
-  group_by(dotacao) %>% 
-  select(dotacao, total_smae) %>% 
-  distinct()
+```
 
-sum(g$total_smae) == total_smae_totais_metas
 
-base_pdm <- base_pdm %>% 
-  mutate(valor_da_inf_orgao = valor_da_inf_orgao.x) %>% 
-  select(-valor_da_inf_orgao.x, -valor_da_inf_orgao.y)
+```{r}
 
-rm(list = c("g", "b"))
 
 # mesclar bases "base_pdm" e "base_da_pdm"
 glimpse(base_pdm)
@@ -848,8 +810,6 @@ b <- base_da_pdm %>%
 
 c <- b %>% 
   arrange(dotacao)
-
-
 
 b %>% 
   select(meta, dotacao) %>% 
@@ -875,7 +835,7 @@ rm(list = c("b", "f", "g", "h", "i"))
 
 
 # acrescentar valor de exec_fisica
-url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alter o link
+url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alterar o link
 
 response <- httr::GET(url_balanco) # Fazendo a solicitação GET
 
@@ -987,20 +947,8 @@ d <- c$dotacao
 
 a %>% 
   filter(meta == 3)
+
 # acrescentar coluna de estimativa (total_liquidado / exec_fisica)
 
 
-
 ```
-
-
-
-
-```{r}
-
-df_pdm %>% 
-  group_by(META) %>% 
-  summarise(sum(unique(valor_da)))
-
-```
-
