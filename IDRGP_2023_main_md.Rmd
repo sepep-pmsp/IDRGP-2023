@@ -311,7 +311,7 @@ rm("teste")
 ## Observou-se que teste$valor_rateio e suporte_rateio_regioes$valor_detalhamento_acao possuem valores diferentes.
 ## Isso ocorre, pois uma série de dotações são apenas supra regionais. É necessário, então, complementar a base_da1, com todas
 ## as subprefeituras para todas as dotações, para diluir os valores supra regionais nas respectivas subprefeiutras
-## de cada região
+## de cada região. Antes de acrescentar os valores proporcionais, vamos incluir as informações origundas dos df base_smae e base_inf_orgaos
 
 # criar objeto com_sub_dot com todas as combinações de dotações e subprefeituras
 comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
@@ -349,22 +349,148 @@ comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
                    "Supra Subprefeitura Centro") ~ "Centro",
     TRUE ~ "Sul")))
 
-#acrescentar sigla_orgao e tipo_regionalizacao
+#acrescentar sigla_orgao
 (a <- base_da1 %>% 
-    select(c("dotacao", "sigla_orgao", "tipo_regionalizacao")))
+    select(c("dotacao", "sigla_orgao")))
 
 comp_sub_dot <- comp_sub_dot %>% 
   left_join(a, by = "dotacao") %>% 
-  select("dotacao", "sigla_orgao", "subprefeitura", "regiao", "tipo_regionalizacao") %>% 
+  select("dotacao", "sigla_orgao", "subprefeitura", "regiao") %>% 
   distinct()
 
 rm(a)
 
 #juntar valor_detalhamento_acao
 comp_sub_dot <- comp_sub_dot %>% 
-  left_join(base_da1, by = c("dotacao", "sigla_orgao", "subprefeitura", "regiao", "tipo_regionalizacao")) %>% 
+  full_join(base_da1, by = c("dotacao", "sigla_orgao", "subprefeitura", "regiao")) %>% 
   replace_na(list(valor_detalhamento_acao = 0)) %>% 
-  select(-distrito)
+  select(-distrito, -tipo_regionalizacao)
+
+
+# trazer informação do valor liquidado registrado no smae e do valor_inf_orgao para acrescentar à base_dot_pdm
+comp_sub_dot <- comp_sub_dot %>% 
+  full_join(base_smae, by = c("dotacao", "subprefeitura")) %>% 
+  replace_na(list(total_smae = 0, valor_da = 0))
+
+comp_sub_dot <- comp_sub_dot %>% 
+  full_join(base_inf_orgaos, by = intersect(names(comp_sub_dot), names(base_inf_orgaos))) %>% 
+  distinct() %>% 
+  replace_na(list(valor_da_inf_orgao = 0))
+
+# ajustar dotacoes que não estão com a codificação completa 
+comp_sub_dot %>% 
+  select(dotacao) %>% 
+  filter(str_length(dotacao) < 48) %>% 
+  distinct() #13 situações 
+
+#1 14.10.16.451.3002.3.357.44903900.00				
+#2 14.10.16.451.3005.3.355.44903900.00
+#3 14.10.16.482.3005.3.355.44905100.00	
+#4 86.14.16.451.3002.3.357.44903900.03	
+#5 98.14.16.482.3002.3.340.44906100.08	
+#6 98.14.16.482.3002.3.354.44903900.08	
+#7 98.14.16.482.3002.3.354.44905100.08	
+#8 98.14.16.482.3005.3.355.44905100.08	
+#9 91.10.16.482.3002.3.356.44903900.08.1.759.8011
+#10 16.10.12.361.3010.3.365.44905100.00.1.500.0003
+#11 98.22.26.453.3009.5.105.44903900.08
+#12 98.22.26.453.3009.5.105.44905100.08
+#13 25.10.13.392.3001.6.371.3390
+
+#1 14.10.16.451.3002.3.357.44903900.00
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+# neste caso, há apenas uma dotação; então basta remover a dotação incmpleta da base_da_pdm
+b <- comp_sub_dot %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00")& !str_length(dotacao) < 48)
+
+comp_sub_dot <- comp_sub_dot %>% 
+  filter(!str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
+
+comp_sub_dot <- comp_sub_dot %>% 
+  bind_rows(b)
+
+rm(list = c("a", "b"))
+
+#2 14.10.16.451.3005.3.355.44903900.00
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+# neste caso, há apenas uma dotação; então basta remover a dotação incmpleta da base_da_pdm
+b <- comp_sub_dot %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00")& !str_length(dotacao) < 48)
+
+comp_sub_dot <- comp_sub_dot %>% 
+  filter(!str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00"))
+
+comp_sub_dot <- comp_sub_dot %>% 
+  bind_rows(b)
+
+rm(list = c("a", "b"))
+
+#3 14.10.16.482.3005.3.355.44905100.00
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop_dot = valor_detalhamento_acao / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+# neste caso, há sete dotações; então vamos substituir para cada uma as informações que constam nas dotacoes incompletas, criando um df provisório (f) que deverá ter 32x7 = 224 linhas
+b <- comp_sub_dot %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")& !str_length(dotacao) < 48)
+
+c <- comp_sub_dot %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")& str_length(dotacao) < 48)
+
+d <- base_da1 %>%
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")) %>% 
+  ungroup(dotacao) %>% 
+  mutate(valor_total = sum(valor_detalhamento_acao),
+         prop_reg = valor_detalhamento_acao/valor_total)
+
+e <- left_join(d, a, by = intersect(names(a), names(d))) %>%
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_detalhamento_acao)
+
+colnames(comp_sub_dot)
+colnames(e)
+
+f <- tibble(
+  dotacao = e$dotacao,
+  sigla_orgao = e$sigla_orgao,
+  subprefeitura = e$subprefeitura,
+  regiao = e$regiao,
+  valor_detalhamento_acao = e$valor_detalhamento_acao,
+  orgao = unique(c$orgao),
+  meta = unique(c$meta),
+  txt_meta = unique(c$txt_meta),
+  total_smae = unique(c$total_smae))
+  
+comp_sub_dot <- comp_sub_dot %>% 
+  filter(!str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00"))
+
+comp_sub_dot %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00"))
+
+comp_sub_dot <- comp_sub_dot %>% 
+  bind_rows(f)
+
+rm(list = c("a", "b", "c", "d", "e", "f"))
+
+
+```
+
+
+```{r}
 
 #juntar count e valor_rateio
 glimpse(suporte_rateio_regioes)
@@ -376,6 +502,7 @@ comp_sub_dot <- comp_sub_dot %>%
 
 comp_sub_dot %>% 
   filter(dotacao == "04.10.15.452.3011.2.300.33903000.06.1.501.9001.0")
+
 
 # acrescentar coluna somando valor_detalhamento_acao + valor_rateio
 comp_sub_dot <- comp_sub_dot %>% 
@@ -397,7 +524,10 @@ comp_sub_dot <- comp_sub_dot %>%
   mutate(proporcao = valor_liquidado/total_valor)
 
 comp_sub_dot %>% 
-  filter(dotacao == "04.10.15.452.3011.2.300.33903000.06.1.501.9001.0")
+  filter(dotacao == "86.14.16.451.3002.3.357.44903900.03")
+
+comp_sub_dot %>% 
+  filter(str_length(dotacao) < 48)
 
 # criar objeto "base_da2" apenas com colunas de interesse
 base_da2 <- comp_sub_dot %>% 
@@ -424,7 +554,8 @@ base_dot_pdm <- base_dot_pdm %>%
 base_dot_pdm <- base_dot_pdm %>% 
   full_join(base_inf_orgaos, by = c("meta", "dotacao", "subprefeitura")) %>% 
   distinct() %>% 
-  replace_na(list(valor_da_inf_orgao = 0))
+  replace_na(list(valor_da_inf_orgao = 0)) %>% 
+  filter(!str_detect(subprefeitura, "Supra"))
 
 rm(list = c("base_smae", "base_inf_orgaos"))
 
@@ -435,8 +566,6 @@ base_da_pdm <- base_da2 %>%
   right_join(base_dot_pdm, by = intersec_da2_dot_pdm) %>% 
   distinct()
 
-base_da_pdm <- base_da_pdm %>% 
-  filter(!str_detect(subprefeitura, fixed("Supra")))
 
 # checar se todas as dotações somam 100%
 a <- base_da_pdm %>% 
@@ -486,65 +615,9 @@ base_da_pdm %>%
 #12 98.22.26.453.3009.5.105.44905100.08
 #13 25.10.13.392.3001.6.371.3390
 
-#1 14.10.16.451.3002.3.357.44903900.00
-(a <- base_da2 %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00") & valor_liquidado > 0) %>% 
-  group_by(dotacao) %>% 
-  summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
-  mutate(total_valor = sum(valor_liquidado),
-         prop = valor_liquidado / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
 
-# neste caso, há apenas uma dotação; então basta remover a dotação incmpleta da base_da_pdm
-b <- base_da_pdm %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00")& !str_length(dotacao) < 48)
 
-base_da_pdm <- base_da_pdm %>% 
-  filter(!str_detect(dotacao, "^14\\.10\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.00"))
 
-base_da_pdm <- base_da_pdm %>% 
-  bind_rows(b)
-
-rm(list = c("a", "b"))
-
-#2 14.10.16.451.3005.3.355.44903900.00
-(a <- base_da2 %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00") & valor_liquidado > 0) %>% 
-  group_by(dotacao) %>% 
-  summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
-  mutate(total_valor = sum(valor_liquidado),
-         prop = valor_liquidado / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
-
-# neste caso, há apenas uma dotação; então basta remover a dotação incmpleta da base_da_pdm
-b <- base_da_pdm %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00")& !str_length(dotacao) < 48)
-
-base_da_pdm <- base_da_pdm %>% 
-  filter(!str_detect(dotacao, "^14\\.10\\.16\\.451\\.3005\\.3\\.355\\.44903900\\.00"))
-
-base_da_pdm <- base_da_pdm %>% 
-  bind_rows(b)
-
-rm(list = c("a", "b"))
-
-#3 14.10.16.482.3005.3.355.44905100.00
-(a <- base_da2 %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00") & valor_liquidado > 0) %>% 
-  group_by(dotacao) %>% 
-  summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
-  mutate(total_valor = sum(valor_liquidado),
-         prop = valor_liquidado / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
-
-# neste caso, há sete dotações; então vamos substituir para cada uma as informações que constam nas dotacoes incompletas, criando um df provisório (c) que deverá ter 32x7 = 224 linhas
-b <- base_da_pdm %>% 
-  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")& !str_length(dotacao) < 48)
-
-base_da_pdm <- base_da_pdm %>% 
-  filter(!str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00"))
-
-base_da_pdm <- base_da_pdm %>% 
-  bind_rows(b)
-
-rm(list = c("a", "b"))
 
 #4 86.14.16.451.3002.3.357.44903900.03
 (a <- base_da2 %>% 
@@ -552,28 +625,51 @@ rm(list = c("a", "b"))
   group_by(dotacao) %>% 
   summarise(valor_liquidado = sum(valor_liquidado), .groups = "drop") %>% 
   mutate(total_valor = sum(valor_liquidado),
-         prop = valor_liquidado / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+         prop_dot = valor_liquidado / total_valor)) # para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
 
-# neste caso, há duas dotações; então 
+# neste caso, há duas dotações;  
 b <- base_da_pdm %>% 
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")& !str_length(dotacao) < 48)
+
+c <- base_da_pdm %>% 
   filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")& str_length(dotacao) < 48)
+
+d <- base_da2 %>%
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")) %>% 
+  group_by(dotacao) %>% 
+  mutate(valor_total = sum(valor_detalhamento_acao),
+         prop_reg = valor_detalhamento_acao/valor_total)
+
+e <- left_join(a, d, by = intersect(names(a), names(d))) %>%
+  select(dotacao, sigla_orgao, subprefeitura, regiao, valor_liquidado, prop_dot, valor_detalhamento_acao, prop_reg)
+
+f <- tibble(
+  dotacao = e$dotacao,
+  sigla_orgao = e$sigla_orgao,
+  subprefeitura = e$subprefeitura,
+  regiao = e$regiao,
+  valor_detalhamento_acao = e$valor_detalhamento_acao,
+  valor_liquidado = valor_detalhamento_acao,
+  proporcao = e$prop_dot * e$prop_reg,
+  acao_orcamentaria = substr(dotacao, 19, 23),
+  orgao = unique(c$orgao),
+  meta = unique(c$meta),
+  txt_meta = unique(c$txt_meta),
+  total_smae = unique(c$total_smae),
+  valor_da = total_smae * proporcao,
+  valor_inf_orgao = valor_da)
+  
 
 base_da_pdm <- base_da_pdm %>% 
   filter(!str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03"))
 
+base_da_pdm %>% 
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03"))
+
 base_da_pdm <- base_da_pdm %>% 
-  bind_rows(b)
+  bind_rows(f)
 
-rm(list = c("a", "b"))
-
-base_dot_pdm %>% 
-  filter(dotacao == "86.14.16.451.3002.3.357.44903900.03")
-
-```
-
-
-```{r}
-
+rm(list = c("a", "b", "c", "d", "e", "f"))
 
 
 
