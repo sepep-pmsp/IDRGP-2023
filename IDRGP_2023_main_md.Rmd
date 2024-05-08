@@ -84,20 +84,20 @@ subprefeitura <- sp %>%
            NOME=sp_nome) %>% 
     select(NOME, sigla, geometry)
 subprefeitura<- subprefeitura %>% 
-  mutate(sp_nome = case_when(
+   mutate(sp_nome = case_when(
     sigla %in% "AF" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
     sigla %in% "BT" ~ "Subprefeitura Butantã",
     sigla %in% "CL" ~ "Subprefeitura Campo Limpo",
     sigla %in% "CS" ~ "Subprefeitura Capela do Socorro",
     sigla %in% "CV" ~ "Subprefeitura Casa Verde/Cachoeirinha",
-    sigla %in% "CAA" ~ "Subprefeitura Cidade Ademar",
+    sigla %in% "AD" ~ "Subprefeitura Cidade Ademar",
     sigla %in% "CT" ~ "Subprefeitura Cidade Tiradentes",
     sigla %in% "EM" ~ "Subprefeitura Ermelino Matarazzo",
     sigla %in% "FO" ~ "Subprefeitura Freguesia/Brasilândia",
     sigla %in% "GU" ~ "Subprefeitura de Guaianases",
     sigla %in% "IP" ~ "Subprefeitura Ipiranga",
-    sigla %in% "IP" ~ "Subprefeitura Itaim Paulista",
-    sigla %in% "IT" ~ "Subprefeitura Itaquera",
+    sigla %in% "IT" ~ "Subprefeitura Itaim Paulista",
+    sigla %in% "IQ" ~ "Subprefeitura Itaquera",
     sigla %in% "JA" ~ "Subprefeitura Jabaquara",
     sigla %in% "JT" ~ "Subprefeitura Jaçanã/Tremembé",
     sigla %in% "LA" ~ "Subprefeitura Lapa",
