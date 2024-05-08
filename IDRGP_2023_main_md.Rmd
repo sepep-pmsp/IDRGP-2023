@@ -132,12 +132,28 @@ subprefeitura %>%
 
 ### Adicionando a base de Obras Prioritárias
 
-Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar os filtros, como os que removem obras de mobilidade e macrodrenagem, pois estas obras não compõem  o cálculo do IDRGP. 
+Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar os filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP. 
 
 ```{r Limpando a base de obras prioritárias, message=FALSE, warning=FALSE, include=FALSE}
 op <- read_xlsx("dados_entregas_prioritarias_v_original.xlsx")
 op <- op %>% 
   filter(`Meta PdM`== "Não", valor_liquidado_total>0)
+op <- op %>% 
+  mutate(analise = ifelse(`Tipo de obra/intervenção`== "Requalificação", "analisar", NA ),
+         analise = ifelse(`Tipo de obra/intervenção`== "Restauro", "analisar", analise),
+         analise = ifelse(`Tipo de obra/intervenção`== "Manutenção", "analisar", analise),
+         analise = ifelse(`Tipo de obra/intervenção`== "Requalificação ", "analisar", analise ))
+op <- op %>% 
+  mutate(decisão1 = ifelse(`Tipo de obra/intervenção`== "Requalificação" & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>% 
+  mutate(decisão2 = ifelse(`Tipo de obra/intervenção`== "Restauro" & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>% 
+  mutate(decisão3 = ifelse(`Tipo de obra/intervenção`== "Manutenção" & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>% 
+  mutate(decisão4 = ifelse(`Tipo de obra/intervenção`== "Requalificação " & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>%
+  filter(decisão1=="manter" & decisão2=="manter" & decisão3== "manter" & decisão4=="manter")
+
 op <- op %>% 
   mutate(Subprefeitura = ifelse(Subprefeitura == "Aricanduva/Carrão/Formosa", "Aricanduva/Formosa/Carrão", Subprefeitura))
 op <- op %>% 
