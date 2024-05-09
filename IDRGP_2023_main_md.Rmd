@@ -129,6 +129,177 @@ subprefeitura %>%
 
 ```
 
+
+
+### Adicionando a base de Obras Prioritárias
+
+Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP. 
+
+```{r Limpando a base de obras prioritárias, message=FALSE, warning=FALSE, include=FALSE}
+op <- read_xlsx("base_monitoramento_obras.xlsx")
+op <- op %>% 
+  filter(`Meta PdM`== "Não", valor_liquidado_total>0)
+
+op <- op %>% 
+  mutate(analise = ifelse(`Tipo de obra/intervenção`== "Requalificação", "analisar", NA ),
+         analise = ifelse(`Tipo de obra/intervenção`== "Restauro", "analisar", analise),
+         analise = ifelse(`Tipo de obra/intervenção`== "Manutenção", "analisar", analise),
+         analise = ifelse(`Tipo de obra/intervenção`== "Requalificação ", "analisar", analise ))
+op <- op %>% 
+  mutate(decisão1 = ifelse(`Tipo de obra/intervenção`== "Requalificação" & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>% 
+  mutate(decisão2 = ifelse(`Tipo de obra/intervenção`== "Restauro" & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>% 
+  mutate(decisão3 = ifelse(`Tipo de obra/intervenção`== "Manutenção" & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>% 
+  mutate(decisão4 = ifelse(`Tipo de obra/intervenção`== "Requalificação " & valor_liquidado_total<1000000, "excluir", "manter"))
+op <- op %>%
+  filter(decisão1=="manter" & decisão2=="manter" & decisão3== "manter" & decisão4=="manter")
+
+op<- op %>% 
+  mutate(macrod1 = str_detect(`Obra/Intervenção`, "Córrego", FALSE))
+op<- op %>% 
+  mutate(macrod2 = str_detect(`Obra/Intervenção`, "Piscinão", F))
+op<- op %>% 
+  mutate(macrod3 = str_detect(`Obra/Intervenção`, "Reservatório", F))
+op<- op %>% 
+  mutate(macrod4 = str_detect(`Obra/Intervenção`, "Canalização", F))
+op <- op %>%
+  filter(macrod1==F & macrod2== F & macrod3== F & macrod4== F)
+
+op <- op %>% 
+  mutate(Subprefeitura = ifelse(Subprefeitura == "Aricanduva/Carrão/Formosa", "Aricanduva/Formosa/Carrão", Subprefeitura))
+op <- op %>% 
+  filter(Secretaria != "SMT") %>% 
+  mutate(DOTACAO = NA) %>%
+  select("...1", DOTACAO,  Secretaria, Subprefeitura, valor_liquidado_total)
+
+op<- op %>% 
+   mutate("sp_nome" = case_when(
+    Subprefeitura %in% "Aricanduva/Formosa/Carrão" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
+    Subprefeitura %in% "Butantã" ~ "Subprefeitura Butantã",
+    Subprefeitura %in% "Campo Limpo" ~ "Subprefeitura Campo Limpo",
+    Subprefeitura %in% "Capela do Socorro" ~ "Subprefeitura Capela do Socorro",
+    Subprefeitura %in% "Casa Verde/Cachoeirinha" ~ "Subprefeitura Casa Verde/Cachoeirinha",
+    Subprefeitura %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
+    Subprefeitura %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
+    Subprefeitura %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
+    Subprefeitura %in% "Freguesia do Ó/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
+    Subprefeitura %in% "Guaianases" ~ "Subprefeitura de Guaianases",
+    Subprefeitura %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
+    Subprefeitura %in% "Itaim Paulista" ~ "Subprefeitura Itaim Paulista",
+    Subprefeitura %in% "Itaquera" ~ "Subprefeitura Itaquera",
+    Subprefeitura %in% "Jabaquara" ~ "Subprefeitura Jabaquara",
+    Subprefeitura %in% "Jaçanã/Tremembé" ~ "Subprefeitura Jaçanã/Tremembé",
+    Subprefeitura %in% "Lapa" ~ "Subprefeitura Lapa",
+    Subprefeitura %in% "M'Boi Mirim" ~ "Subprefeitura M'Boi Mirim",
+    Subprefeitura %in% "Mooca" ~ "Subprefeitura Mooca",
+    Subprefeitura %in% "Parelheiros" ~ "Subprefeitura Parelheiros",
+    Subprefeitura %in% "Penha" ~ "Subprefeitura Penha",
+    Subprefeitura %in% "Perus" ~ "Subprefeitura Perus/Anhanguera",
+    Subprefeitura %in% "Pinheiros" ~ "Subprefeitura Pinheiros",
+    Subprefeitura %in% "Pirituba/Jaraguá" ~ "Subprefeitura Pirituba/Jaraguá",
+    Subprefeitura %in% "Santana/Tucuruvi" ~ "Subprefeitura Santana/Tucuruvi",
+    Subprefeitura %in% "Santo Amaro" ~ "Subprefeitura Santo Amaro",
+    Subprefeitura %in% "São Mateus" ~ "Subprefeitura São Mateus",
+    Subprefeitura %in% "São Miguel Paulista" ~ "Subprefeitura São Miguel Paulista",
+    Subprefeitura %in% "Sapopemba" ~ "Subprefeitura Sapopemba",
+    Subprefeitura %in% "Sé" ~ "Subprefeitura Sé",
+    Subprefeitura %in% "Vila Maria/Vila Guilherme" ~ "Subprefeitura Vila Maria/Vila Guilherme",
+    Subprefeitura %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
+    TRUE ~ "Subprefeitura de Vila Prudente"))
+
+
+```
+
+
+Então, descobrimos o valor total empenhado e agregamos as observações por Subprefeitura para realizar as análises 
+
+
+```{r Obras Prioritárias por Subprefeitura, echo=FALSE}
+
+sum(op$valor_liquidado_total)
+obras_prioritarias <- op %>%
+  group_by(Subprefeitura) %>% 
+  summarise(total_op = sum(valor_liquidado_total))
+
+obras_prioritarias<- obras_prioritarias %>% 
+   mutate("sp_nome" = case_when(
+    Subprefeitura %in% "Aricanduva/Formosa/Carrão" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
+    Subprefeitura %in% "Butantã" ~ "Subprefeitura Butantã",
+    Subprefeitura %in% "Campo Limpo" ~ "Subprefeitura Campo Limpo",
+    Subprefeitura %in% "Capela do Socorro" ~ "Subprefeitura Capela do Socorro",
+    Subprefeitura %in% "Casa Verde/Cachoeirinha" ~ "Subprefeitura Casa Verde/Cachoeirinha",
+    Subprefeitura %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
+    Subprefeitura %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
+    Subprefeitura %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
+    Subprefeitura %in% "Freguesia do Ó/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
+    Subprefeitura %in% "Guaianases" ~ "Subprefeitura de Guaianases",
+    Subprefeitura %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
+    Subprefeitura %in% "Itaim Paulista" ~ "Subprefeitura Itaim Paulista",
+    Subprefeitura %in% "Itaquera" ~ "Subprefeitura Itaquera",
+    Subprefeitura %in% "Jabaquara" ~ "Subprefeitura Jabaquara",
+    Subprefeitura %in% "Jaçanã/Tremembé" ~ "Subprefeitura Jaçanã/Tremembé",
+    Subprefeitura %in% "Lapa" ~ "Subprefeitura Lapa",
+    Subprefeitura %in% "M'Boi Mirim" ~ "Subprefeitura M'Boi Mirim",
+    Subprefeitura %in% "Mooca" ~ "Subprefeitura Mooca",
+    Subprefeitura %in% "Parelheiros" ~ "Subprefeitura Parelheiros",
+    Subprefeitura %in% "Penha" ~ "Subprefeitura Penha",
+    Subprefeitura %in% "Perus" ~ "Subprefeitura Perus/Anhanguera",
+    Subprefeitura %in% "Pinheiros" ~ "Subprefeitura Pinheiros",
+    Subprefeitura %in% "Pirituba/Jaraguá" ~ "Subprefeitura Pirituba/Jaraguá",
+    Subprefeitura %in% "Santana/Tucuruvi" ~ "Subprefeitura Santana/Tucuruvi",
+    Subprefeitura %in% "Santo Amaro" ~ "Subprefeitura Santo Amaro",
+    Subprefeitura %in% "São Mateus" ~ "Subprefeitura São Mateus",
+    Subprefeitura %in% "São Miguel Paulista" ~ "Subprefeitura São Miguel Paulista",
+    Subprefeitura %in% "Sapopemba" ~ "Subprefeitura Sapopemba",
+    Subprefeitura %in% "Sé" ~ "Subprefeitura Sé",
+    Subprefeitura %in% "Vila Maria/Vila Guilherme" ~ "Subprefeitura Vila Maria/Vila Guilherme",
+    Subprefeitura %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
+    TRUE ~ "Subprefeitura de Vila Prudente"))
+
+```
+
+
+Em seguida, conectamos com a base catográfica para georreferenciar os dados
+
+```{r Obras Prioritárias regionalizado, echo=FALSE}
+idrgp_op<- full_join(subprefeitura, obras_prioritarias, by = "sp_nome")
+
+idrgp_op %>% 
+  ggplot() +
+  geom_sf(aes(fill = total_op, geometry = geometry)) +
+  scale_fill_gradient(low="white",high="blue") +
+  geom_sf_text(aes(label = sigla), color = "black", size = 1.5, fontface = "bold") + 
+  theme_void()
+
+```
+
+
+Por fim, com objetivo meramente descritivo, vamos visualizar os dados das Obras Prioritárias em dois gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura (ainda não obtemos os dados de liquidação por Ação Orçamentária).
+
+op %>% 
+  group_by(Secretaria) %>% 
+  summarise(Liquidado_OP = sum(valor_liquidado_total)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado_OP,
+               y = Secretaria),
+           show.legend = TRUE) +
+  labs(title = "Obras Prioritárias por Órgãos") +
+  theme_minimal()
+  
+#gráfico por Sub
+op %>% 
+  group_by(sp_nome) %>% 
+  summarise(Liquidado_OP = sum(valor_liquidado_total)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado_OP,
+               y = sp_nome),
+           show.legend = TRUE) +
+  labs(title = "Obras Prioritárias por Subprefeitura") +
+  theme_minimal()
+
+=======
 ### Base do Orçamento Cidadão
 
 Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Fazenda (SF) e tratada por SEPEP para desvincular os projetos que também estão inseridos no escopo do Programa de Metas.
@@ -217,6 +388,7 @@ idrgp_oc %>%
 Por fim, com objetivo meramente descritivo, vamos visualizar os dados do Orçamento Cidadão em três gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura e a liquidação por Ação Orçamentária.
 
 
+
 ```{r Gráficos do orçamento Cidadão, echo=FALSE}
 
 #gráfico por órgão:
@@ -251,6 +423,7 @@ df_oc %>%
            show.legend = TRUE) +
   labs(title = "Orçamento cidadão por Ação Orçamentária") +
   theme_minimal()
+
 ##
 ```
 
