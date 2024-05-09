@@ -132,12 +132,13 @@ subprefeitura %>%
 
 ### Adicionando a base de Obras Prioritárias
 
-Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar os filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP. 
+Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP. 
 
 ```{r Limpando a base de obras prioritárias, message=FALSE, warning=FALSE, include=FALSE}
-op <- read_xlsx("dados_entregas_prioritarias_v_original.xlsx")
+op <- read_xlsx("base_monitoramento_obras.xlsx")
 op <- op %>% 
   filter(`Meta PdM`== "Não", valor_liquidado_total>0)
+
 op <- op %>% 
   mutate(analise = ifelse(`Tipo de obra/intervenção`== "Requalificação", "analisar", NA ),
          analise = ifelse(`Tipo de obra/intervenção`== "Restauro", "analisar", analise),
@@ -154,10 +155,19 @@ op <- op %>%
 op <- op %>%
   filter(decisão1=="manter" & decisão2=="manter" & decisão3== "manter" & decisão4=="manter")
 
+op<- op %>% 
+  mutate(macrod1 = str_detect(`Obra/Intervenção`, "Córrego", FALSE))
+op<- op %>% 
+  mutate(macrod2 = str_detect(`Obra/Intervenção`, "Piscinão", F))
+op<- op %>% 
+  mutate(macrod3 = str_detect(`Obra/Intervenção`, "Reservatório", F))
+op<- op %>% 
+  mutate(macrod4 = str_detect(`Obra/Intervenção`, "Canalização", F))
+op <- op %>%
+  filter(macrod1==F & macrod2== F & macrod3== F & macrod4== F)
+
 op <- op %>% 
   mutate(Subprefeitura = ifelse(Subprefeitura == "Aricanduva/Carrão/Formosa", "Aricanduva/Formosa/Carrão", Subprefeitura))
-op <- op %>% 
-  mutate(Subprefeitura = ifelse(Subprefeitura == "Casa verde/cachoeirinha", "Casa Verde/Cachoeirinha", Subprefeitura))
 op <- op %>% 
   filter(Secretaria != "SMT") %>% 
   mutate(DOTACAO = NA) %>%
@@ -173,7 +183,7 @@ op<- op %>%
     Subprefeitura %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
     Subprefeitura %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
     Subprefeitura %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
-    Subprefeitura %in% "Freguesia/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
+    Subprefeitura %in% "Freguesia do Ó/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
     Subprefeitura %in% "Guaianases" ~ "Subprefeitura de Guaianases",
     Subprefeitura %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
     Subprefeitura %in% "Itaim Paulista" ~ "Subprefeitura Itaim Paulista",
@@ -202,10 +212,10 @@ op<- op %>%
 ```
 
 
-Então, agregamos as observações por Subprefeitura
+Então, descobrimos o valor total empenhado e agregamos as observações por Subprefeitura para realizar as análises 
 
 
-```{r Obras Prioritárias por Subprefeitura, include=FALSE}
+```{r Obras Prioritárias por Subprefeitura, echo=FALSE}
 
 sum(op$valor_liquidado_total)
 obras_prioritarias <- op %>%
@@ -222,7 +232,7 @@ obras_prioritarias<- obras_prioritarias %>%
     Subprefeitura %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
     Subprefeitura %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
     Subprefeitura %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
-    Subprefeitura %in% "Freguesia/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
+    Subprefeitura %in% "Freguesia do Ó/Brasilândia" ~ "Subprefeitura Freguesia/Brasilândia",
     Subprefeitura %in% "Guaianases" ~ "Subprefeitura de Guaianases",
     Subprefeitura %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
     Subprefeitura %in% "Itaim Paulista" ~ "Subprefeitura Itaim Paulista",
