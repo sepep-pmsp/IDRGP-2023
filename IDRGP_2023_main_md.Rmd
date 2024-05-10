@@ -425,15 +425,16 @@ Além disso, também vamos calculara soma total do valor liquidado por subprefei
 
 #Junatndo bancos
 idrgp<- full_join(obras_prioritarias, df_sub_oc, by = "sp_nome")
+idrgp<- full_join(idrgp, idrgp_pdm, by = "sp_nome")
 idrgp<- full_join(subprefeitura, idrgp, by = "sp_nome")
 
 idrgp<- idrgp %>% 
   mutate(total_oc = ifelse( is.na(total_oc), 0, total_oc))
 idrgp<- idrgp %>% 
   mutate(total_idrgp_23 = total_oc + total_op,
-         p_liq_23 = total_idrgp/sum(total_idrgp), 
+         p_liq_23 = total_idrgp_23/sum(total_idrgp_23), 
          diferenca23 = p_liq_23 - ref_idrgp)
-idrgp %>% select(NOME, total_idrgp, p_liq_23, diferenca23)
+idrgp %>% select(NOME, total_idrgp_23, p_liq_23, diferenca23)
 
 ```
 
@@ -570,3 +571,80 @@ idrgp %>%
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 ```
+
+### Comparando com os dados de 2022
+
+Por fim, vamos traçar um paralelo com os dados do IDRGP 2022
+
+```{r mapa idrgp22, echo=FALSE}
+###Inserndo dados de 2022
+idrgp22<- read_excel("consolidado_idrgp_2022.xlsx")
+idrgp22<- idrgp22 %>% 
+  mutate(tot22= sum(idrgp_2022),
+         ref22= sum(valor_por_ano),
+         p_liq_22 = ( liq_pdm +liq_obras + liq_oc )/tot22, 
+         ref_idrgp22 = valor_por_ano/ref22,
+         diferenca22= p_liq_22 - ref_idrgp22)
+t.test(idrgp22$p_liq_22, idrgp22$ref_idrgp22)
+idrgp22<- idrgp22 %>% 
+  mutate("Status" = case_when(
+    idrgp22$diferenca22 <  - 0.01244564 ~ "Aquem da referência do IDRGP",
+    idrgp22$diferenca22 >  0.01244564 ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+idrgp22<- idrgp22 %>% 
+  rename(NOME = sp_nome)
+idrgp22<- idrgp22 %>% 
+  mutate(NOME = ifelse(NOME == "M'BOI MIRIM", "M BOI MIRIM", NOME))
+map_22<- inner_join(idrgp22, subprefeitura, by = "NOME")
+map_22 %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status, geometry = geometry )) +
+  scale_fill_manual(values = c("yellow","red", "blue")) +
+  geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Variação significativa do gasto de 2022 da referência do IDRGP",
+       subtitle = "t.test com intervalo de confiança de 95%",
+       fill = "Aproximação do IDRGP",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+```
+
+
+### IDRGP do biênio 2022-2023
+
+Também é possível agregar os dados dos anso de 2022 e 2023 e ter um retrato do biênio
+
+
+```{r IDRGP 22+23, echo=FALSE}
+
+### Soma dos gastos de 2022 e 2023
+mapa_22e23<- inner_join( map_22, idrgp, by = c("NOME", "sigla", "geometry", "sp_nome", "ref_idrgp"))
+mapa_22e23<- mapa_22e23 %>% 
+  mutate(liq_22e23 = idrgp_2022 + total_idrgp_23,
+         p_liq_22e23 = liq_22e23/ sum(liq_22e23)) %>% 
+  select(sigla, NOME, sp_nome, geometry, ref_idrgp, idrgp_2022, total_idrgp_23, liq_22e23, p_liq_22e23)
+mapa_22e23<- mapa_22e23 %>% 
+  mutate(diferenca = p_liq_22e23 - ref_idrgp)
+
+teste_t_agreg<-t.test(mapa_22e23$ref_idrgp, mapa_22e23$p_liq_22e23, paired = T)
+mapa_22e23<- mapa_22e23 %>% 
+  mutate("Status" = case_when(
+    mapa_22e23$diferenca <  teste_t_agreg$conf.int[1] ~ "Aquem da referência do IDRGP",
+    mapa_22e23$diferenca >  teste_t_agreg$conf.int[2] ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+
+
+mapa_22e23 %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status, geometry = geometry )) +
+  scale_fill_manual(values = c("yellow","red", "blue")) +
+  geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Variação significativa do gasto no biênio 2022 e 2023 da referência do IDRGP",
+       subtitle = "t.test com intervalo de confiança de 95%",
+       fill = "Aproximação do IDRGP",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+
+```
+
