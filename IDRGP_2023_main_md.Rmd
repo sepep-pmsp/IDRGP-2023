@@ -683,7 +683,6 @@ rm("teste")
 
 # criar objeto complementar comp_sub_dot com todas as combinações de dotações e subprefeituras
 a <- base_da1
-  #filter(!str_detect(subprefeitura, "Supra")) #remover as linhas que contêm "supra" para diminuir o tamanho do df comp_sub_dot
 
 comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
                  subprefeitura = unique(a$subprefeitura))
@@ -744,7 +743,7 @@ comp_sub_dot <- a
 
 rm(list = c("a", "b", "c"))
 
-# Checar se todas as dotações possuem contegem 36 para subprefeitura (32 subs + 4 supra)
+# Checar se todas as dotações possuem contagem 36 para subprefeitura (32 subs + 4 supra)
 (a <- comp_sub_dot %>% 
   select(dotacao, regiao, subprefeitura) %>% 
   group_by(dotacao) %>% 
@@ -780,7 +779,7 @@ a <- a %>%
   mutate(valor_detalhamento_acao = valor_detalhamento_acao.x + valor_rateio) %>% 
   filter(!str_detect(subprefeitura, "Supra"))
 
-checagem6 <- sum(a$valor_detalhamento_acao) == soma_da_base2
+checagem5 <- sum(a$valor_detalhamento_acao) == soma_da_base2
 soma_da_base2 - sum(a$valor_detalhamento_acao)
 
 a <- a %>% 
@@ -827,19 +826,36 @@ a <- base_da_pdm %>%
   distinct() %>% 
   replace_na(list(total_smae = 0, valor_detalhamento_acao = 0, proporcao = 0)) %>% 
   mutate(acao_orcamentaria = substr(dotacao, 19, 23)) %>% 
-  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, regiao, subprefeitura, proporcao, valor_detalhamento_acao, total_smae)
+  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, regiao, subprefeitura, proporcao, valor_detalhamento_acao, total_smae) %>% 
+  arrange(meta, dotacao)
 
 b <- a %>% 
-  mutate(total_smae = total_smae*proporcao)
+  group_by(dotacao) %>% 
+  summarise(chec = mean(total_smae))
 
-sum(b$total_smae) == soma_smae
+(checagem5 <- sum(b$chec) == soma_smae)
 
-soma_smae - sum(b$total_smae) # diferença de R$ 18,5 milhões
+soma_smae - sum(b$chec)
 
 # Para investigar a diferença, vamos criar uma tabela com meta, valor smae da base b e valor smae da base smae, agrupados por meta. Dessa forma, será possível indentificar em qual meta há discrepância
-c <- b %>% 
+cc <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(chec.x = mean(total_smae),
+            chec.y = n_distinct(meta)) %>% 
+  filter(chec.y > 1) %>% 
+  arrange(desc(chec.y))
+
+c <- a %>% 
   group_by(meta) %>% 
-  summarise(chec_da = sum(total_smae))
+  summarise(chec = if_else(n_distinct(dotacao) == 1, TRUE, FALSE),
+            chec_da = if_else(chec, mean(total_smae), sum(total_smae))) %>% 
+  select(-chec)
+
+ccc <- a %>% 
+  group_by(meta) %>% 
+  summarise(chec = mean(total_smae))
+
+sum(ccc$chec)
 
 d <- base_smae %>% 
   group_by(meta) %>% 
@@ -848,7 +864,34 @@ d <- base_smae %>%
 e <- c %>% 
   full_join(d, by = "meta") %>% 
   mutate(diferenca = chec_da - chec_smae) %>% 
-  filter(diferenca != 0) # a diferença se dá exclusivamente na meta 4
+  filter(diferenca != 0) %>% 
+  arrange(desc(diferenca))
+
+
+###### ESTOU AQUI. INVESTIGAR DIFERENÇA NOS TOTAIS AO FAZER O JOIN SMAE e BASE_DA
+
+###### DEPOIS, SEGUIR COM VALOR_INF_ORGAO
+
+##### EXECUÇÃO FÍSICA
+
+##### PROPORÇÃO SMAE/REGIAO (VALOR SMAE) + VALOR_INF_ORGAO + ESTIMATIVA
+
+
+
+sum(e$diferenca)
+
+g <- a %>% 
+  select(orgao, meta, txt_meta, dotacao, total_smae) %>% 
+  group_by(dotacao) %>% 
+  arrange(meta, dotacao) %>% 
+  distinct(total_smae, .keep_all = TRUE)
+
+unique(a$total_smae)
+
+sum(g$total_smae)
+
+f <- a %>% 
+  filter(dotacao == cc$dotacao[1])
 
 f <- a %>% 
   filter(meta == 4) %>% 
@@ -863,10 +906,10 @@ sum(g$valor_detalhamento_acao)
 
 # Como não é possível sanar esta diferença, vamos considerar que a soma do valor smae é o da base_da_pdm
 
-soma_smae.x <- sum(b$total_smae)
+soma_smae.x <- sum(b$total_smae_p)
 
 # Checando a soma do valor_detalhamento_acao
-h <- b %>% 
+h <- a %>% 
   group_by(dotacao, subprefeitura) %>% 
   summarise(chec_da_pdm = mean(valor_detalhamento_acao))
 
@@ -877,18 +920,19 @@ i <- comp_sub_dot %>%
   group_by(dotacao, subprefeitura) %>% 
   summarise(chec_da = mean(valor_detalhamento_acao))
 
-k <- h %>% 
+j <- h %>% 
   right_join(i, by = intersect(names(h), names(i))) %>% 
   replace_na(list(chec_da = 0, chec_da_pdm = 0)) %>% 
   mutate(diferenca = chec_da - chec_da_pdm) %>% 
   filter(dotacao %in% dotacao_smae) %>% 
   filter(diferenca != 0)
 
-sum(k$chec_da)
-sum(k$chec_da_pdm) - soma_base_da_pdm # Embora não tenha sido encontrada diferença no objeto k, a comparação com soma_base_da_pdm apresenta diferença de R$ 580,9 mil. Não sendo possível identificar a origem dessa diferença, vamos desconsiderar esse valor
+(checagem6 <- sum(j$chec_da) == soma_base_da_pdm)
+
+sum(j$chec_da_pdm) - soma_base_da_pdm # Embora não tenha sido encontrada diferença no objeto j, a comparação com soma_base_da_pdm apresenta diferença de R$ 580,9 mil. Não sendo possível identificar a origem dessa diferença, vamos desconsiderar esse valor
 soma_base_da_pdm.x <- sum(h$chec_da_pdm)
 
-base_da_pdm <- b
+base_da_pdm <- a
 
 rm(list = c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"))
 
@@ -975,55 +1019,66 @@ writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
 (base_exec_fisica_reg <- base_exec_fisica_reg %>% 
   fill(meta, .direction = "down"))
 
-# Selecionar apenas as colunas meta, subprefeitura e x2023
+# Selecionar apenas as colunas meta, subprefeitura e x2023, e apenas metas consideradas para o IDRGP
+
+(readxl::excel_sheets("metas_alteracao_programatica.xlsx"))
+
+metas_idrgp <- read_excel("metas_alteracao_programatica.xlsx", sheet = "metas") %>%
+  janitor::clean_names() %>% 
+  rename(meta = no) %>% 
+    filter(meta != 10) %>% 
+  select(meta)
+
+(metas_idrgp <- unique(metas_idrgp))
+
+(metas_idrgp <- unique(base_smae$meta)) # metas 27, 53, 79 não tiveram execução orçamentária
+
 (base_exec_fisica_reg_23 <- base_exec_fisica_reg %>% 
-  select(meta, subprefeitura, x2023))
+  select(meta, subprefeitura, x2023)) 
+
+glimpse(base_exec_fisica_reg_23) # ao observar o df, percebemos que a coluna x2023 é chr e alguns registros e as casas decimais estão separadas por "," e não por "." (ex: base_exec_fisica_reg_23$x2023[202]), sendo necessário substituí-los para que não se tornem NA ao executar o comando as.numeric
+
+(base_exec_fisica_reg_23 <- base_exec_fisica_reg_23 %>% 
+  mutate(x2023 = gsub(",", ".", x2023)))
+
+(base_exec_fisica_reg_23$x2023 <- as.numeric(base_exec_fisica_reg_23$x2023))
+
+base_exec_fisica_reg %>% 
+  select(meta, subprefeitura, x2023) %>% 
+  filter(meta %in% c("27", "53", "79")) # Houve execução física para as metas 27 e 79, porém não há elementos para atribuir valores às subprefeituras
+
+(base_exec_fisica_reg_23 <- base_exec_fisica_reg_23 %>% 
+  filter(meta %in% metas_idrgp) %>% 
+    rename(exec_fisica = x2023)) # Vamos, então, selecionar apenas as metas consideradas para o monitoramento do IDRGP
+
 
 # Juntar com base_da_pdm
+
 (a <- base_da_pdm %>% 
   left_join(base_exec_fisica_reg_23, by = c("meta", "subprefeitura")) %>% 
-    distinct() %>% 
-    rename(exec_fisica = x2023))
+  distinct())
 
+(checagem7 <- sum(a$total_smae_p) == soma_smae.x)
 
+sum(a$total_smae_p) - soma_smae.x
 
-glimpse(a)
-glimpse(base_pdm_completa)
+b <- a %>% 
+  group_by(meta) %>% 
+  summarise(n_distinct(subprefeitura))
 
-b <- base_pdm_completa %>% 
-  group_by(meta, dotacao) %>% 
-  summarise(valor_da = sum(valor_liquidado),
-            valor_smae = mean(total_smae),
-            valor_inf_orgao = sum(valor_da_inf_orgao))
+c <- base_exec_fisica_reg_23 %>% 
+  group_by((meta)) %>% 
+  summarise(n_distinct(subprefeitura))
 
-sum(b$valor_smae, na.rm = TRUE)
-
-(c <- base_pdm_completa %>% 
-  filter(dotacao %in% d) %>% 
-  arrange(meta, dotacao) %>% 
-  select(meta, dotacao, subprefeitura, valor_liquidado, total_smae, valor_da_inf_orgao))
-
-e <- base_pdm_completa %>% 
-  group_by(dotacao) %>% 
-  arrange(dotacao, meta) %>% 
-  fill(meta, .direction = "down")
-
-?fill()
-
-c %>% 
-  filter(dotacao == "07.10.16.482.3002.3.340.44906100.08.2.759.1224.1")
-
-
-d <- c$dotacao
-
-a %>% 
-  filter(meta == 3)
-
-# acrescentar coluna de estimativa (total_liquidado / exec_fisica)
+# para recalcular o total_smae, distribuindo os valores por regiões
+b <- a %>% 
+  mutate(total_smae_p = total_smae*proporcao) %>% 
+  select(-proporcao) 
 
 
 
 ```
+
 
 
 
