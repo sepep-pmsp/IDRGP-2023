@@ -278,6 +278,7 @@ idrgp_op %>%
 
 Por fim, com objetivo meramente descritivo, vamos visualizar os dados das Obras Prioritárias em dois gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura (ainda não obtemos os dados de liquidação por Ação Orçamentária).
 
+```{r gráficos Obras Prioritárias, echo=FALSE}
 op %>% 
   group_by(Secretaria) %>% 
   summarise(Liquidado_OP = sum(valor_liquidado_total)) %>% 
@@ -298,6 +299,8 @@ op %>%
            show.legend = TRUE) +
   labs(title = "Obras Prioritárias por Subprefeitura") +
   theme_minimal()
+```
+
 
 =======
 ### Base do Orçamento Cidadão
