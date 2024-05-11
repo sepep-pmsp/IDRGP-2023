@@ -212,6 +212,7 @@ base_inf_orgaos %>%
 
 ## Com isso, será necessário:
 ### Tratar as dotações que possuem codificações incompletas nas bases smae e valor_inf_orgao
+### Agrupar as dotações, para evitar relações muitos-para-muitos ao combinar bases de dados
 ### Mesclar as bases, separadamente, com a base do detalhamento da ação (visando evitar relações múltiplas entre bases)
 
 
@@ -222,14 +223,14 @@ O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponi
 ```{r paged.print=TRUE}
 
 # obter base de dados do DA
-#base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
-#                          locale = locale(encoding = "latin1")) %>% 
-#  janitor::clean_names()
+base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
+                          locale = locale(encoding = "latin1")) %>%
+  janitor::clean_names()
 
 base::names(base_da)
 
 # criar coluna com a codificação da dotação orçamentária
-base_da1 <- base_da %>% 
+base_da <- base_da %>% 
   dplyr::mutate(dotacao = base::paste(codigo_orgao,
                                       codigo_unidade,
                                       codigo_funcao,
@@ -243,7 +244,9 @@ base_da1 <- base_da %>%
                                       codigo_vinculo_pmsp,
                                       codigo_tipo_credito_orcamentario,
                                       sep = "."),
-                dotacao = base::sub('^(.{19})', '\\1.', dotacao)) %>% 
+                dotacao = base::sub('^(.{19})', '\\1.', dotacao)) 
+
+base_da1 <- base_da %>% 
   dplyr::select(dotacao, sigla_orgao, regiao, subprefeitura, distrito, tipo_regionalizacao, valor_detalhamento_acao) %>%   dplyr::group_by(dotacao, subprefeitura) %>% 
   dplyr::summarise(sigla_orgao = first(sigla_orgao),
                    regiao = first(regiao),
@@ -621,6 +624,7 @@ c <- tibble(
   meta = rep(unique(b$meta), rep),
   dotacao = rep(a$dotacao, nrow(b)),
   prop = rep(a$prop, nrow(b)),
+  subprefeitura = rep(unique(b$subprefeitura), each = nrow(a)),
   valor_da_inf_orgao.x = rep(b$valor_da_inf_orgao, each = nrow(a)),
   valor_da_inf_orgao.y = valor_da_inf_orgao.x*prop) %>%
   rename(valor_da_inf_orgao = valor_da_inf_orgao.y) %>% 
@@ -638,6 +642,17 @@ base_inf_orgaos <- base_inf_orgaos %>%
 rm(list = c("a", "b", "c", "rep"))
 
 (checagem2 <- soma_inf_orgao == sum(base_inf_orgaos$valor_da_inf_orgao))
+
+# Como as bases serão combinadas com outras, em especial a do detalhamento da ação, é importante garantir que as bases tenham linhas exclusivas. Na base_smae, é necessário fazer o agrupamento de dotações.
+
+(base_smae <- base_smae %>% 
+  group_by(dotacao) %>% 
+  summarise(orgao = first(orgao),
+            meta = first(meta),
+            txt_meta = first(txt_meta),
+            total_smae = sum(total_smae)) %>% 
+  select(orgao, meta, txt_meta, dotacao, total_smae) %>% 
+  arrange(meta, dotacao))
 
 dotacao_smae <- unique(base_smae$dotacao)
 dotacao_inf_orgao <- unique(base_inf_orgaos$dotacao)
@@ -821,120 +836,94 @@ base_da_pdm <- comp_sub_dot %>%
 soma_base_da_pdm <- sum(base_da_pdm$valor_detalhamento_acao)
 
 # Combinar bases da_pdm e smae
+
+chave_da <- base_da1 %>% 
+  select(dotacao, valor_detalhamento_acao) %>% 
+  group_by(dotacao) %>% 
+  summarise(chave_da = sum(valor_detalhamento_acao))  #Vamos adicionar o valor do detalhamento da ação da dotdação, para ter uma chave a mais de conexão entre as bases smae e da_pdm
+
 a <- base_da_pdm %>% 
-  left_join(base_smae, by = intersect(names(base_smae), names(base_da_pdm))) %>% 
+  left_join(chave_da, by = "dotacao") # acrescentando chave na base_da_pdm
+
+b <- base_smae %>% 
+  left_join(chave_da, by = "dotacao") # acrescentando chave na base_smae
+
+c <- a %>% 
+  left_join(b, by = c("dotacao", "chave_da")) %>% 
   distinct() %>% 
   replace_na(list(total_smae = 0, valor_detalhamento_acao = 0, proporcao = 0)) %>% 
   mutate(acao_orcamentaria = substr(dotacao, 19, 23)) %>% 
-  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, regiao, subprefeitura, proporcao, valor_detalhamento_acao, total_smae) %>% 
-  arrange(meta, dotacao)
+  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, regiao, subprefeitura, proporcao, chave_da, valor_detalhamento_acao, total_smae) %>% 
+  arrange(meta, dotacao)   
 
-b <- a %>% 
+#checagens
+(d <- c %>% 
+  group_by(dotacao, meta) %>% 
+  summarise(chec = mean(total_smae)))
+
+(e <- c %>% 
   group_by(dotacao) %>% 
-  summarise(chec = mean(total_smae))
+  summarise(chec = mean(chave_da)))
 
-(checagem5 <- sum(b$chec) == soma_smae)
+(checagem8 <- sum(d$chec) == soma_smae)
+sum(d$chec)
+soma_smae - sum(d$chec)
 
-soma_smae - sum(b$chec)
+(checagem9 <- sum(e$chec) == soma_base_da_pdm)
 
-# Para investigar a diferença, vamos criar uma tabela com meta, valor smae da base b e valor smae da base smae, agrupados por meta. Dessa forma, será possível indentificar em qual meta há discrepância
-cc <- a %>% 
-  group_by(dotacao) %>% 
-  summarise(chec.x = mean(total_smae),
-            chec.y = n_distinct(meta)) %>% 
-  filter(chec.y > 1) %>% 
-  arrange(desc(chec.y))
+# Para investigar a diferença da checagem 8, vamos criar uma tabela com meta, valor smae da base b e valor smae da base smae, agrupados por meta. Dessa forma, será possível indentificar em qual meta há discrepância
 
-c <- a %>% 
+f <- base_smae %>% 
   group_by(meta) %>% 
-  summarise(chec = if_else(n_distinct(dotacao) == 1, TRUE, FALSE),
-            chec_da = if_else(chec, mean(total_smae), sum(total_smae))) %>% 
-  select(-chec)
+  summarise(b_smae = sum(total_smae))
 
-ccc <- a %>% 
+g <- c %>% 
+  group_by(meta, dotacao) %>% 
+  summarise(b_da = mean(total_smae))
+
+h <- g %>% 
   group_by(meta) %>% 
-  summarise(chec = mean(total_smae))
+  summarise(b_da = sum(b_da))
 
-sum(ccc$chec)
+i <- f %>% 
+  full_join(h, by = "meta") %>% 
+  mutate(dif =  b_da - f$b_smae) %>% 
+  filter(dif != 0) # a diferença se concentra na meta 4
 
-d <- base_smae %>% 
-  group_by(meta) %>% 
-  summarise(chec_smae = sum(total_smae))
-
-e <- c %>% 
-  full_join(d, by = "meta") %>% 
-  mutate(diferenca = chec_da - chec_smae) %>% 
-  filter(diferenca != 0) %>% 
-  arrange(desc(diferenca))
-
-
-###### ESTOU AQUI. INVESTIGAR DIFERENÇA NOS TOTAIS AO FAZER O JOIN SMAE e BASE_DA
-
-###### DEPOIS, SEGUIR COM VALOR_INF_ORGAO
-
-##### EXECUÇÃO FÍSICA
-
-##### PROPORÇÃO SMAE/REGIAO (VALOR SMAE) + VALOR_INF_ORGAO + ESTIMATIVA
-
-
-
-sum(e$diferenca)
-
-g <- a %>% 
-  select(orgao, meta, txt_meta, dotacao, total_smae) %>% 
-  group_by(dotacao) %>% 
-  arrange(meta, dotacao) %>% 
-  distinct(total_smae, .keep_all = TRUE)
-
-unique(a$total_smae)
-
-sum(g$total_smae)
-
-f <- a %>% 
-  filter(dotacao == cc$dotacao[1])
-
-f <- a %>% 
+j <- c %>% 
   filter(meta == 4) %>% 
   group_by(acao_orcamentaria)
 
-dot_m4 <- unique(f$dotacao)
+dot_m4_da <- unique(j$dotacao)
 
-g <- comp_sub_dot %>% 
-  filter(dotacao %in% dot_m4)
+k <- base_smae %>% 
+  filter(meta == 4) %>% 
+  group_by(dotacao)
 
-sum(g$valor_detalhamento_acao)
+dot_m4_smae <- unique(k$dotacao)
+
+(dot_m4 <- setdiff(dot_m4_smae, dot_m4_da))
+
+base_da1 %>% 
+  filter(dotacao %in% dot_m4) # 0
+
+base_da %>% 
+  filter(dotacao %in% dot_m4) # A diferença refere-se a despesas não regionalizáveis
 
 # Como não é possível sanar esta diferença, vamos considerar que a soma do valor smae é o da base_da_pdm
 
-soma_smae.x <- sum(b$total_smae_p)
+base_da_pdm <- c
 
-# Checando a soma do valor_detalhamento_acao
-h <- a %>% 
-  group_by(dotacao, subprefeitura) %>% 
-  summarise(chec_da_pdm = mean(valor_detalhamento_acao))
+soma_smae.x <- sum(d$chec)
 
-sum(h$chec)
-sum(h$chec)-soma_base_da_pdm
+# checando se todas as proporções somam 1
+l <- c %>% 
+  group_by(dotacao) %>% 
+  summarise(prop = sum(proporcao)) %>% 
+  distinct() %>% 
+  filter(prop != 1) # Há diferenças apenas nas casas decimais
 
-i <- comp_sub_dot %>% 
-  group_by(dotacao, subprefeitura) %>% 
-  summarise(chec_da = mean(valor_detalhamento_acao))
-
-j <- h %>% 
-  right_join(i, by = intersect(names(h), names(i))) %>% 
-  replace_na(list(chec_da = 0, chec_da_pdm = 0)) %>% 
-  mutate(diferenca = chec_da - chec_da_pdm) %>% 
-  filter(dotacao %in% dotacao_smae) %>% 
-  filter(diferenca != 0)
-
-(checagem6 <- sum(j$chec_da) == soma_base_da_pdm)
-
-sum(j$chec_da_pdm) - soma_base_da_pdm # Embora não tenha sido encontrada diferença no objeto j, a comparação com soma_base_da_pdm apresenta diferença de R$ 580,9 mil. Não sendo possível identificar a origem dessa diferença, vamos desconsiderar esse valor
-soma_base_da_pdm.x <- sum(h$chec_da_pdm)
-
-base_da_pdm <- a
-
-rm(list = c("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"))
+rm("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "chave_da")
 
 
 # Mesclar base_inf_orgaos
@@ -942,9 +931,6 @@ a <- base_da_pdm %>%
   left_join(base_inf_orgaos, by = intersect(names(base_da_pdm), names(base_inf_orgaos))) %>% 
   replace_na(list(valor_da_inf_orgao = 0))
 
-base_da_pdm <- a
-
-rm(a)
 
 # acrescentar valor de exec_fisica
 url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alterar o link
@@ -1053,22 +1039,12 @@ base_exec_fisica_reg %>%
 
 
 # Juntar com base_da_pdm
-
 (a <- base_da_pdm %>% 
   left_join(base_exec_fisica_reg_23, by = c("meta", "subprefeitura")) %>% 
-  distinct())
+  distinct() %>% 
+    replace_na(list(exec_fisica = 0)))
 
-(checagem7 <- sum(a$total_smae_p) == soma_smae.x)
-
-sum(a$total_smae_p) - soma_smae.x
-
-b <- a %>% 
-  group_by(meta) %>% 
-  summarise(n_distinct(subprefeitura))
-
-c <- base_exec_fisica_reg_23 %>% 
-  group_by((meta)) %>% 
-  summarise(n_distinct(subprefeitura))
+#############PAREI AQUI##############################
 
 # para recalcular o total_smae, distribuindo os valores por regiões
 b <- a %>% 
@@ -1076,10 +1052,14 @@ b <- a %>%
   select(-proporcao) 
 
 
-
 ```
 
 
+```{r}
+
+
+
+```
 
 
 
