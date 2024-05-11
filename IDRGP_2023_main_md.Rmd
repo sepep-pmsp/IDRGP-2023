@@ -829,6 +829,8 @@ rm(list = c("a", "b"))
 Agora, inserimos informações sobre as execuções física e orçamentária do Programa de Metas, combinando as bases: base_smae, base_inf_orgaos e comp_sub_dot. Também trabalhamos com as informações sobre a execução física regionalizada do Programa de Metas. Com isso, chegamos a uma base com as três estratégias de regionalização da execução orçamentária das metas, a saber: regionalização pelo DA (ou proporção); informação direta do órgão e estimativa a partir da razão entre valor liquidado e execução física.
 ```{r}
 
+##### Criação da base_da_pdm - join base_da, base_smae, base_inf_orgaos #####
+
 # Criar uma base, a partir de com_sub_dot apenas com dotações do PdM
 base_da_pdm <- comp_sub_dot %>% 
   filter(dotacao %in% dotacao_smae)
@@ -927,10 +929,12 @@ rm("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "chave_da")
 
 
 # Mesclar base_inf_orgaos
-a <- base_da_pdm %>% 
+base_da_pdm <- base_da_pdm %>% 
   left_join(base_inf_orgaos, by = intersect(names(base_da_pdm), names(base_inf_orgaos))) %>% 
   replace_na(list(valor_da_inf_orgao = 0))
 
+
+##### Acréscimo de valor de exec_fisica ####
 
 # acrescentar valor de exec_fisica
 url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alterar o link
@@ -965,7 +969,7 @@ writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
          subprefeitura = x2)) # necessário padronizar nomes das subprefeituras conforme base_pdm_completa e preencher coluna meta, cujas células estão mescladas na planilha original
 
 
-# Padronizar nome das subprefeituras conforme base_pdm_completa
+# Padronizar nome das subprefeituras conforme base_da_pdm
 (base_exec_fisica_reg <- base_exec_fisica_reg %>% 
   mutate(subprefeitura = case_when(
            subprefeitura %in% "Aricanduva" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
@@ -1044,19 +1048,155 @@ base_exec_fisica_reg %>%
   distinct() %>% 
     replace_na(list(exec_fisica = 0)))
 
-#############PAREI AQUI##############################
+(b <- a %>% 
+  group_by(dotacao, meta) %>% 
+  summarise(chec = mean(total_smae)))
 
-# para recalcular o total_smae, distribuindo os valores por regiões
-b <- a %>% 
-  mutate(total_smae_p = total_smae*proporcao) %>% 
-  select(-proporcao) 
+(c <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(chec = sum(valor_detalhamento_acao)))
 
+(checagem8 <- sum(b$chec) == soma_smae.x)
+
+(checagem9 <- sum(c$chec) == soma_base_da_pdm)
+
+d <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(prop = sum(proporcao)) %>% 
+  distinct() %>% 
+  filter(prop != 1) %>% 
+  arrange(desc(prop))
+
+a %>% 
+  filter(dotacao == "84.10.10.301.3003.2.520.44505200.00.1.500.7034.1") #c omo o join entre base_exec_reg_23 e base_da_pdm ampliou o número de linhas, será necessário recalcular a coluna proporcao
+
+a <- a %>% 
+  group_by(dotacao) %>% 
+  mutate(proporcao = valor_detalhamento_acao / sum(valor_detalhamento_acao))
+
+e <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(prop = sum(proporcao)) %>% 
+  distinct() %>% 
+  filter(prop != 1) %>% 
+  arrange(desc(prop))      # diferença nas casas decimais
+
+base_da_pdm <- a
+
+
+##### Aplicação de proporções (regionais) ao total_smae ####
+
+# recalcular o total_smae, distribuindo os valores por regiões
+a <- base_da_pdm %>% 
+  mutate(total_smae.p = total_smae*proporcao)
+
+Checagem10 <- sum(a$total_smae.p) == soma_smae.x
+
+a <- a %>% 
+  select(-chave_da, -proporcao, -total_smae) %>% 
+  mutate(estimativa = if_else(exec_fisica == 0, 0, total_smae.p / exec_fisica))
+
+a <- a %>% 
+  mutate(valor_liquidado = case_when(
+    meta == 17 ~ estimativa,
+    orgao %in% c("SMS", "SMC") ~ valor_da_inf_orgao,
+    TRUE ~ total_smae.p
+  ))
+
+sum(a$valor_liquidado)
+
+a <- a %>% 
+  rename(total_smae = total_smae.p) %>% 
+  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, subprefeitura, exec_fisica, valor_detalhamento_acao, valor_da_inf_orgao, estimativa, total_smae, valor_liquidado)
+
+base_da_pdm <- a
+
+rm(list = c("a", "b", "c", "d", "e", "response", "content", "temp_file", "url_balanco"))
 
 ```
 
+### Análise Programa de Metas
+
+Com a base ajustada, faremos manipulações para explorar os dados e visualizações
 
 ```{r}
 
+##### Se o IDRGP fosse composto apenas pelo PdM, como seria a situação em 20203? ####
+
+
+
+gp_idrgp_pdm <- base_da_pdm %>% 
+  group_by(subprefeitura) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  rename(sp_nome = subprefeitura) %>% 
+  left_join(ref_idrgp, by = "sp_nome") %>% 
+  mutate(g_perc = valor_liquidado / sum(valor_liquidado),
+         diferenca = g_perc - ref_idrgp) %>% 
+  arrange(desc(ref_idrgp))
+
+gp_idrgp_pdm %>% 
+  mutate("Status" = case_when(
+    gp_idrgp_pdm$diferenca < 0 ~ "Execução MENOR do que a referência pelo IDRGP",
+    gp_idrgp_pdm$diferenca >= 0 ~ "Execução MAIOR do que a referência pelo IDRGP"
+  )) %>% 
+  ggplot() +
+  geom_col(aes(x = g_perc,
+               y = forcats::fct_reorder(sp_nome, ref_idrgp),
+               fill = Status),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("#0A447F", "orange")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = sp_nome,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "IDRGP PdM 2023",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
+
+##### Como os valores liquidados do PdM se distribuiram territorialmente? ####
+
+a <- gp_idrgp_pdm %>% 
+  left_join(subprefeitura, by = c("sp_nome", "ref_idrgp")) %>% 
+  st_as_sf()
+
+str(a)
+
+ggplot(data = a) +
+  geom_sf(aes(fill = g_perc, geometry = geometry)) +
+  geom_sf_text(aes(label = sigla), color = "black", size = 1.5, fontface = "bold") + 
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  theme_void()
+
+
+##### Quais orgãos tiveram maior valor_liquidado em 2023? ####
+
+b <- base_da_pdm %>% 
+  group_by(orgao) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  arrange(desc(valor_liquidado))
+
+b %>% 
+  ggplot() +
+   geom_col(aes(x = valor_liquidado,
+               y = forcats::fct_reorder(orgao, valor_liquidado)))
+
+
+##### Quais políticas públicas (ações orçamentárias) tiveram mais recursos liquidados? ####
+
+c <- base_da_pdm %>% 
+  group_by(acao_orcamentaria) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  arrange(desc(valor_liquidado))
+
+c %>% 
+  ggplot() +
+   geom_col(aes(x = valor_liquidado,
+               y = forcats::fct_reorder(acao_orcamentaria, valor_liquidado)))
 
 
 ```
