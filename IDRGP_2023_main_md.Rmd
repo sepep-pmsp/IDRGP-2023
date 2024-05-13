@@ -2,7 +2,9 @@
 title: "IDRGP 2023"
 author: "FPR e DG"
 date: "2024-04-05"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 # IDRGP 2023
@@ -19,16 +21,18 @@ output: html_document
 
 library(tidyverse)
 library(readxl)
-library(purrr)
 library(sf)
+library(tinytex)
+library(janitor)
 
-base::options(scipen = 99)
+
+base::options(scipen = 99, digits = 2)
 
 ```
 
 ### Valores de referência do IDRGP
 
-Inicialmente inserimos os valores de referência do IDRGP:
+Inicialmente, inserimos os valores de referência do IDRGP:
 
 ```{r Valores de referência, echo=FALSE, message=FALSE, warning=FALSE}
 (ref_idrgp <- dplyr::tibble(sp_nome = c("Subprefeitura Capela do Socorro",
@@ -74,7 +78,7 @@ Inicialmente inserimos os valores de referência do IDRGP:
 
 Em seguida, inserimos a base cartográfica do município de São Paulo obtida a partir do GeoSampa.
 
-A partir dela selecionamos os dados das Subprefeituras com os valores de referência do índice.
+A partir dela, selecionamos os dados das Subprefeituras com os valores de referência do índice.
 
 ```{r Cartografia, echo=FALSE, message=FALSE, warning=FALSE}
 sp <- read_sf("SIRGAS_SHP_subprefeitura//SIRGAS_SHP_subprefeitura_polygon.shp")
@@ -129,13 +133,1077 @@ subprefeitura %>%
 
 ```
 
+### Bases do PdM 2021-2024
+
+Nesta seção, detalhamos os processos de obtenção e transformação dos dados de execução física e orçamentária do Programa de Metas. Para efeitos de monitoramento do IDRGP 2023, são considerados 28 compromissos do Programa de Metas 2021-2024 versão Alteração Programática. Tanto os dados de execução física quanto os da execução orçamentária são inseridos por cada órgão responsável no Sistema de Monitoramento e Acompanhamento Estratégico (SMAE).
+
+Os dados de execução física são, nas metas selecionadas para o IDRGP 2023, desagregadas em nível regional (subprefeitura), podendo, dessa forma, serem extraídos diretamente do SMAE. Para tornar o presente relatório replicável, optou-se por utilizar como fonte sobre a execução física regionalizada os dados abertos do PdM, disponível em: \<[ ]().
+
+Os dados de execução orçamentária correspondem à liquidação das dotações orçamentárias que abarcam despesas vinculadas ao Programa de Metas. Como os dados abertos apresentam os valores empenhados e, para fins de monitoramento do IDRGP, interessam os valores liquidados, extraiu-se um relatório do SMAE, em 04/03/2024, registrado nas abas "smae_x_da", do documento "metas_alteracao_programatica.xlsx". Para a desagregação regional destes dados, lançou-se mão de três estratégias:
+
+-   Coleta de dados diretamente com os órgãos, nos casos das Metas 3, 4, 5, 7, 8, 9, 78 e 79, sob responsabilidade da Secretaria Municpal de Saúde (SMS) e da Meta 84, conduzida pela Secretaria Municipal de Cultura (SMC). Tais informações encontram-se na aba "totais_inf_orgaos", do documento "metas_alteracao_programatica.xlsx";
+-   Cálculo da razão entre o valor liquidado e a execução física, por região, para a Meta 17;
+-   Regionalização a partir do "Detalhamento da Ação", por meio de consulta a dados publicados pela Secretaria da Fazenda (SF). A base de dados da regionalização da execução orçamentária do exercício de 2023, pode ser extraída por meio do portal: \<[[https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\\\\](https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php){.uri}](%5Bhttps://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php\%5D(https://orcamento.sf.prefeitura.sp.gov.br/orcamente/execucao.php)%7B.uri%7D){.uri}\>, nos formatos "[.csv](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv)", "[.xlsx](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.xlsx)", "[.ods](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.ods)" ou "[.json](https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.json)"
+
+Há casos em que a execução orçamentária da dotação foi integralmente dedicada ao Programa de Metas. Nesses casos, o valor regionalizado pelo detalhamento da ação corresponde ao valor regionalizado das metas consideradas para o IDRGP 2023.
+
+Nos casos em que a dotação orçamentária não abarcou desepesas exclusivas do Programa de Metas, assumiu-se que a execução regionalizada da meta foi proporcional à regioanlização pelo detalhamento da ação.
+
+Introduzidas as passagens que originaram os dados da execução física e orçamentária do Programa de Metas, apresentamos, a seguir, as manipulações para a criação de objetos necessários à análise dos dados, a começar pela importação e tratamentos preliminares.
+
+```{r}
+
+#ler a aba totais_metas
+base_smae <- read_excel("metas_alteracao_programatica.xlsx", sheet = "smae_x_da") %>%
+  janitor::clean_names() %>%
+  dplyr::select(idrgp:smae) %>% 
+  rename(meta = no,
+         txt_meta = descricao,
+         dotacao = dotacoes_orcamentarias,
+         total_smae = smae) %>%
+    filter(idrgp == "S" & meta != 10 & total_smae > 0) %>% 
+  select(-idrgp) %>% 
+  distinct()
+
+dotacao_smae <- unique(base_smae$dotacao)
+soma_smae <- sum(base_smae$total_smae)
+  
+#ler a aba totais_metas_inf_orgaos
+base_inf_orgaos <- readxl::read_excel("metas_alteracao_programatica.xlsx", sheet = "totais_metas_inf_orgaos") %>% 
+  select("ORGAO":"Subprefeitura Vila Mariana") %>% 
+  filter(TOTAL_SMAE > 0)
+
+#transformar as colunas de subprefeituras e supra subprefeituras em uma única coluna
+base_inf_orgaos <- base_inf_orgaos %>% 
+    tidyr::pivot_longer(
+      cols = c("Subprefeitura Aricanduva/Formosa/Carrão":"Subprefeitura Vila Mariana"),
+      names_to = "subprefeitura",
+      values_to = "valor_da_inf_orgao") %>%
+  janitor::clean_names() %>% 
+    dplyr::select(meta, dotacao, subprefeitura, valor_da_inf_orgao) %>% 
+  filter(valor_da_inf_orgao > 0)
+
+dotacao_inf_orgao <- unique(base_inf_orgaos$dotacao)
+soma_inf_orgao <- sum(base_inf_orgaos$valor_da_inf_orgao)
+
+## Identificar dotacoes incompletas da base_smae
+base_smae %>% 
+  select(dotacao) %>% 
+  filter(str_length(dotacao) < 48) %>% 
+  distinct()
+
+# 7 casos
+#1. 14.10.16.482.3005.3.355.44905100.00	
+#2. 86.14.16.451.3002.3.357.44903900.03				
+#3. 98.14.16.482.3002.3.340.44906100.08				
+#4. 98.14.16.482.3002.3.354.44903900.08				
+#5. 98.14.16.482.3002.3.354.44905100.08				
+#6. 98.14.16.482.3005.3.355.44905100.08				
+#7. 91.10.16.482.3002.3.356.44903900.08.1.759.8011
+
+## Idetnificar dotacoes incompletas da base_inf_orgaos
+base_inf_orgaos %>% 
+  select(dotacao) %>% 
+  filter(str_length(dotacao) < 48) %>% 
+  distinct()
+
+# 1 caso
+#1. 25.10.13.392.3001.6.371.3390
+
+## Com isso, será necessário:
+### Tratar as dotações que possuem codificações incompletas nas bases smae e valor_inf_orgao
+### Agrupar as dotações, para evitar relações muitos-para-muitos ao combinar bases de dados
+### Mesclar as bases, separadamente, com a base do detalhamento da ação (visando evitar relações múltiplas entre bases)
+
+```
+
+O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponibilizada pela Secretaria da Fazenda.
+
+```{r paged.print=TRUE}
+
+# obter base de dados do DA
+base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
+                          locale = locale(encoding = "latin1")) %>%
+  janitor::clean_names()
+
+base::names(base_da)
+
+# criar coluna com a codificação da dotação orçamentária
+base_da <- base_da %>% 
+  dplyr::mutate(dotacao = base::paste(codigo_orgao,
+                                      codigo_unidade,
+                                      codigo_funcao,
+                                      codigo_subfuncao,
+                                      codigo_programa,
+                                      codigo_proj_ativ,
+                                      codigo_conta_despesa,
+                                      codigo_fonte,
+                                      codigo_exercicio_fonte,
+                                      codigo_destinacao_recurso,
+                                      codigo_vinculo_pmsp,
+                                      codigo_tipo_credito_orcamentario,
+                                      sep = "."),
+                dotacao = base::sub('^(.{19})', '\\1.', dotacao)) 
+
+base_da1 <- base_da %>% 
+  dplyr::select(dotacao, sigla_orgao, regiao, subprefeitura, distrito, tipo_regionalizacao, valor_detalhamento_acao) %>%   dplyr::group_by(dotacao, subprefeitura) %>% 
+  dplyr::summarise(sigla_orgao = first(sigla_orgao),
+                   regiao = first(regiao),
+                   subprefeitura = first(subprefeitura),
+                   distrito = first(distrito),
+                   tipo_regionalizacao = first(tipo_regionalizacao),
+                   valor_detalhamento_acao = sum(valor_detalhamento_acao)) %>% 
+  dplyr::filter(tipo_regionalizacao == "Despesa Regionalizável")
 
 
-### Adicionando a base de Obras Prioritárias
+# checar existência de NA
+base_da1 %>%
+  summarise_all(~ any(is.na(.))) #não há NA
 
-Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP. 
+# transformar subprefeitura=="Supra Subprefeitura Centro" em "Subprefeitura Sé"
+base_da1 <- base_da1 %>% 
+  mutate(subprefeitura = case_when(
+    subprefeitura %in% "Supra Subprefeitura Centro" ~ "Subprefeitura Sé",
+    TRUE ~ subprefeitura)
+  )
+
+base_da1 <- base_da1 %>% 
+  select(dotacao, subprefeitura, regiao, sigla_orgao, valor_detalhamento_acao)
+
+soma_da_base1 <- sum(base_da1$valor_detalhamento_acao)
+
+```
+
+Tendo acesso ao universo de dotações regionalizadas que tiveram execução em 2023, vamos prosseguir com o tratamento das dotações incompletas das bases smae e valor_inf_orgao
+```{r}
+
+# O tratamento das dotações incompletas consiste em ratear o valor total_smae conforme a proporção de cada dotação completa contida no agruamento da dotação incompleta. O produto final será a base_smae com dotacoes equiráveis à base_da1, mas com os valores total_smae ajustados proporcionalmente.
+
+colnames(base_smae)
+
+# 7 casos
+#1. 14.10.16.482.3005.3.355.44905100.00	
+#2. 86.14.16.451.3002.3.357.44903900.03				
+#3. 98.14.16.482.3002.3.340.44906100.08				
+#4. 98.14.16.482.3002.3.354.44903900.08				
+#5. 98.14.16.482.3002.3.354.44905100.08				
+#6. 98.14.16.482.3005.3.355.44905100.08				
+#7. 91.10.16.482.3002.3.356.44903900.08.1.759.8011
+
+#1. 25.10.13.392.3001.6.371.3390
+
+
+#1 14.10.16.482.3005.3.355.44905100.00
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae) # diferença é insignificante; para ajustar as checagens vou diminuir esse valor da dotação linha com maior valor liquidado
+
+d <- sum(b$total_smae) - sum(c$total_smae)
+
+c <- c %>% 
+  arrange(desc(total_smae))
+
+c$total_smae[1] <- c$total_smae[1] + d
+
+base_smae <- base_smae %>% 
+  filter(!str_detect(dotacao, "^14\\.10\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.00"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c", "d"))
+
+
+#2 86.14.16.451.3002.3.357.44903900.03
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")& str_length(dotacao) < 48) %>% 
+  select(-dotacao) #neste caso, há duas metas. Vamos ajustar uma de cada vez
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")&
+           str_length(dotacao) < 48 &
+           meta == 12) %>% 
+  select(-dotacao) #neste caso, há duas metas. Vamos ajustar uma de cada vez
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!(meta == 12 & str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("b", "c"))
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")&
+           str_length(dotacao) < 48 &
+           meta == 13) %>% 
+  select(-dotacao) #neste caso, há duas metas. Vamos ajustar uma de cada vez
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!(meta == 13 & str_detect(dotacao, "^86\\.14\\.16\\.451\\.3002\\.3\\.357\\.44903900\\.03")))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c"))
+
+
+#3 98.14.16.482.3002.3.340.44906100.08 
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.340\\.44906100\\.08") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.340\\.44906100\\.08")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.340\\.44906100\\.08"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c"))
+
+
+#4 98.14.16.482.3002.3.354.44903900.08	
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44903900\\.08") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44903900\\.08")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44903900\\.08"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c"))
+
+
+#5 98.14.16.482.3002.3.354.44905100.08	
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44905100\\.08") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44905100\\.08")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3002\\.3\\.354\\.44905100\\.08"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c"))
+
+
+#6 98.14.16.482.3005.3.355.44905100.08	
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.08") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^98\\.14\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.08")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!str_detect(dotacao, "^98\\.14\\.16\\.482\\.3005\\.3\\.355\\.44905100\\.08"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c"))
+
+
+#7 91.10.16.482.3002.3.356.44903900.08.1.759.8011 
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08\\.1\\.759\\.8011") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_smae %>% 
+  filter(str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08\\.1\\.759\\.8011")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  orgao = rep(unique(b$orgao), rep),
+  meta = rep(unique(b$meta), rep),
+  txt_meta = rep(unique(b$txt_meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  total_smae.x = rep(b$total_smae, each = nrow(a)),
+  total_smae.y = total_smae.x*prop) %>%
+  rename(total_smae = total_smae.y) %>% 
+  select(-prop, -total_smae.x)
+
+sum(b$total_smae) == sum(c$total_smae)
+sum(b$total_smae) - sum(c$total_smae)
+
+base_smae <- base_smae %>% 
+  filter(!str_detect(dotacao, "^91\\.10\\.16\\.482\\.3002\\.3\\.356\\.44903900\\.08\\.1\\.759\\.8011"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_smae <- base_smae %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c", "rep"))
+
+(checagem1 <- soma_smae == sum(base_smae$total_smae))
+
+
+#1. 25.10.13.392.3001.6.371.3390 
+(a <- base_da1 %>% 
+  filter(str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390") & valor_detalhamento_acao > 0) %>% 
+  group_by(dotacao) %>% 
+  summarise(valor_detalhamento_acao = sum(valor_detalhamento_acao), .groups = "drop") %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao),
+         prop = valor_detalhamento_acao / total_valor)) %>% 
+  select(-total_valor)# para identificar quantas dotações são abragidas pela dotação incompleta calcular a proporção de cada dotação completa no conjunto abrangido pela dotação incompleta
+
+b <- base_inf_orgaos %>% 
+  filter(str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390")& str_length(dotacao) < 48) %>% 
+  select(-dotacao)
+
+rep <- nrow(a) * nrow(b)
+
+c <- tibble(
+  meta = rep(unique(b$meta), rep),
+  dotacao = rep(a$dotacao, nrow(b)),
+  prop = rep(a$prop, nrow(b)),
+  subprefeitura = rep(unique(b$subprefeitura), each = nrow(a)),
+  valor_da_inf_orgao.x = rep(b$valor_da_inf_orgao, each = nrow(a)),
+  valor_da_inf_orgao.y = valor_da_inf_orgao.x*prop) %>%
+  rename(valor_da_inf_orgao = valor_da_inf_orgao.y) %>% 
+  select(-prop, -valor_da_inf_orgao.x)
+
+sum(b$valor_da_inf_orgao) == sum(c$valor_da_inf_orgao)
+sum(b$valor_da_inf_orgao) - sum(c$valor_da_inf_orgao)
+
+base_inf_orgaos <- base_inf_orgaos %>% 
+  filter(!str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390"))#para remover todos os registros com a dotação em questão (evitar duplicidades)
+
+base_inf_orgaos <- base_inf_orgaos %>% 
+  bind_rows(c) # para ter registros com dotações completas
+
+rm(list = c("a", "b", "c", "rep"))
+
+(checagem2 <- soma_inf_orgao == sum(base_inf_orgaos$valor_da_inf_orgao))
+
+# Como as bases serão combinadas com outras, em especial a do detalhamento da ação, é importante garantir que as bases tenham linhas exclusivas. Na base_smae, é necessário fazer o agrupamento de dotações.
+
+(base_smae <- base_smae %>% 
+  group_by(dotacao) %>% 
+  summarise(orgao = first(orgao),
+            meta = first(meta),
+            txt_meta = first(txt_meta),
+            total_smae = sum(total_smae)) %>% 
+  select(orgao, meta, txt_meta, dotacao, total_smae) %>% 
+  arrange(meta, dotacao))
+
+dotacao_smae <- unique(base_smae$dotacao)
+dotacao_inf_orgao <- unique(base_inf_orgaos$dotacao)
+
+```
+
+As bases base_smae e base_inf_orgaos estão prontas para serem mescladas. É necessário, agora, tratar a base_da1, distribuindo os valores cuja regionalização foi apontada como sendo supra regional para as subprefeituras que compõem cada região. Após esse procedimento, vamos calcular a proporção gasta em cada região para ter como resultado uma das estratégias de obtenção do valor regionalizado dos recursos liquidados nas ações do Programa de Metas, monitorados no IDRGP.
+
+```{r}
+
+## Ratear valores de subprefeitura=="Supra Subprefeitura Região X" nas respectivas subprefeituras da Região X
+suporte_rateio_regioes <- base_da1 %>% 
+  filter(subprefeitura %in% c("Supra Subprefeitura Leste",
+                          "Supra Subprefeitura Norte",
+                          "Supra Subprefeitura Oeste",
+                          "Supra Subprefeitura Sul")) #df apenas do que tem "supra" na coluna dotacao
+
+sum(suporte_rateio_regioes$valor_detalhamento_acao) #441164215
+
+(n_sub_regioes <- base_da1 %>% 
+  filter(!str_detect(subprefeitura, "Supra")) %>% 
+  group_by(regiao) %>% 
+  summarise(count = n_distinct(subprefeitura))) #número de subprefeituras por região
+
+(suporte_rateio_regioes <- suporte_rateio_regioes %>% 
+  left_join(n_sub_regioes, by = "regiao") %>% 
+  mutate(valor_rateio = valor_detalhamento_acao / count) %>% 
+  arrange(dotacao))
+
+sum(suporte_rateio_regioes$valor_rateio) #64756605
+
+(suporte_rateio_regioes <- suporte_rateio_regioes %>% 
+    select(-subprefeitura))
+
+(teste <- base_da1 %>%
+  left_join(suporte_rateio_regioes, by = intersect(names(base_da1), names(suporte_rateio_regioes))) %>% 
+  replace_na(list(count = 0, valor_rateio = 0)) %>% 
+    distinct())
+
+(checagem3 <- sum(teste$valor_rateio, na.rm = TRUE)== sum(suporte_rateio_regioes$valor_detalhamento_acao)) #Como existem dotações que são apenas supra regionais, era esperado que a equivalência proposta por esta checagem não ocorresse
+
+rm("teste")
+
+# criar objeto complementar comp_sub_dot com todas as combinações de dotações e subprefeituras
+a <- base_da1
+
+comp_sub_dot <- expand_grid(dotacao = unique(base_da1$dotacao),
+                 subprefeitura = unique(a$subprefeitura))
+
+rm(a)
+
+# acrescentar regiao ao objeto comp_sub_dot
+(comp_sub_dot <- comp_sub_dot %>% 
+  mutate(regiao = case_when(
+    subprefeitura %in% c("Subprefeitura Aricanduva/Formosa/Carrão",
+                   "Subprefeitura Cidade Tiradentes",
+                   "Subprefeitura de Guaianases",
+                   "Subprefeitura de Vila Prudente",
+                   "Subprefeitura Ermelino Matarazzo",
+                   "Subprefeitura Itaim Paulista",
+                   "Subprefeitura Itaquera",
+                   "Subprefeitura Mooca",
+                   "Subprefeitura Penha",
+                   "Subprefeitura São Mateus",
+                   "Subprefeitura São Miguel Paulista",
+                   "Subprefeitura Sapopemba",
+                   "Supra Subprefeitura Leste") ~ "Leste",
+    subprefeitura %in% c("Subprefeitura Butantã",
+                   "Subprefeitura Lapa",
+                   "Subprefeitura Pinheiros",
+                   "Supra Subprefeitura Oeste") ~ "Oeste",
+    subprefeitura %in% c("Subprefeitura Casa Verde/Cachoeirinha",
+                   "Subprefeitura Freguesia/Brasilândia",
+                   "Subprefeitura Jaçanã/Tremembé",
+                   "Subprefeitura Perus/Anhanguera",
+                   "Subprefeitura Pirituba/Jaraguá",
+                   "Subprefeitura Santana/Tucuruvi",
+                   "Subprefeitura Vila Maria/Vila Guilherme",
+                   "Supra Subprefeitura Norte") ~ "Norte",
+    subprefeitura %in% c("Subprefeitura Sé",
+                   "Supra Subprefeitura Centro") ~ "Centro",
+    TRUE ~ "Sul")))
+
+#acrescentar sigla_orgao
+(a <- base_da1 %>% 
+    select(c("dotacao", "sigla_orgao")))
+
+comp_sub_dot <- comp_sub_dot %>% 
+  left_join(a, by = "dotacao") %>% 
+  distinct()
+
+rm(a)
+
+#juntar valor_detalhamento_acao
+a <- comp_sub_dot %>% 
+  left_join(base_da1, by = intersect(names(comp_sub_dot), names(base_da1))) %>% 
+  distinct() %>% 
+  replace_na(list(valor_detalhamento_acao = 0))
+
+(checagem4 <- sum(a$valor_detalhamento_acao) == soma_da_base1) 
+
+comp_sub_dot <- a
+
+rm(list = c("a", "b", "c"))
+
+# Checar se todas as dotações possuem contagem 36 para subprefeitura (32 subs + 4 supra)
+(a <- comp_sub_dot %>% 
+  select(dotacao, regiao, subprefeitura) %>% 
+  group_by(dotacao) %>% 
+  summarise(checagem = n_distinct(subprefeitura)))
+
+a %>% 
+  filter(checagem < 36)
+
+rm(a)
+
+#juntar count e valor_rateio
+a <- comp_sub_dot %>% 
+  left_join(suporte_rateio_regioes, by = c("dotacao", "regiao", "sigla_orgao")) %>% 
+  distinct() %>% 
+  replace_na(list(valor_detalhamento_acao.y = 0, count = 0, valor_rateio = 0))
+
+colnames(a)
+
+sum(a$valor_detalhamento_acao.x)
+sum(a$valor_detalhamento_acao.y, na.rm = TRUE)
+sum(a$valor_rateio)
+
+(b <- a %>% 
+  filter(dotacao == "04.10.15.452.3011.2.300.33903000.06.1.501.9001.0"))
+
+b %>% 
+  filter(!str_detect(subprefeitura, "Supra")) %>% 
+  select(regiao, valor_rateio) %>% 
+  group_by(regiao) %>% 
+  summarise(sum(valor_rateio))
+
+a <- a %>% 
+  mutate(valor_detalhamento_acao = valor_detalhamento_acao.x + valor_rateio) %>% 
+  filter(!str_detect(subprefeitura, "Supra"))
+
+checagem5 <- sum(a$valor_detalhamento_acao) == soma_da_base2
+soma_da_base2 - sum(a$valor_detalhamento_acao)
+
+a <- a %>% 
+  filter(valor_detalhamento_acao > 0) %>% 
+  select(dotacao, subprefeitura, regiao, sigla_orgao, valor_detalhamento_acao)
+
+comp_sub_dot <- a
+
+rm(list = c("a"))
+
+# acrescentar o gasto proporcial em cada região; em cada dotação
+a <- comp_sub_dot %>% 
+  group_by(dotacao) %>% 
+  mutate(total_valor = sum(valor_detalhamento_acao))
+
+a <- a %>% 
+  mutate(proporcao = valor_detalhamento_acao/total_valor)
+
+# Checagem se todos os agrupamentos de dotação somam 100%
+(b <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(chec = sum(proporcao)) %>% 
+  filter(chec != 1))
+
+comp_sub_dot <- a %>% 
+  select(-total_valor)
+
+rm(list = c("a", "b"))
+
+```
+
+Agora, inserimos informações sobre as execuções física e orçamentária do Programa de Metas, combinando as bases: base_smae, base_inf_orgaos e comp_sub_dot. Também trabalhamos com as informações sobre a execução física regionalizada do Programa de Metas. Com isso, chegamos a uma base com as três estratégias de regionalização da execução orçamentária das metas, a saber: regionalização pelo DA (ou proporção); informação direta do órgão e estimativa a partir da razão entre valor liquidado e execução física.
+```{r}
+
+##### Criação da base_da_pdm - join base_da, base_smae, base_inf_orgaos #####
+
+# Criar uma base, a partir de com_sub_dot apenas com dotações do PdM
+base_da_pdm <- comp_sub_dot %>% 
+  filter(dotacao %in% dotacao_smae)
+
+soma_base_da_pdm <- sum(base_da_pdm$valor_detalhamento_acao)
+
+# Combinar bases da_pdm e smae
+
+chave_da <- base_da1 %>% 
+  select(dotacao, valor_detalhamento_acao) %>% 
+  group_by(dotacao) %>% 
+  summarise(chave_da = sum(valor_detalhamento_acao))  #Vamos adicionar o valor do detalhamento da ação da dotdação, para ter uma chave a mais de conexão entre as bases smae e da_pdm
+
+a <- base_da_pdm %>% 
+  left_join(chave_da, by = "dotacao") # acrescentando chave na base_da_pdm
+
+b <- base_smae %>% 
+  left_join(chave_da, by = "dotacao") # acrescentando chave na base_smae
+
+c <- a %>% 
+  left_join(b, by = c("dotacao", "chave_da")) %>% 
+  distinct() %>% 
+  replace_na(list(total_smae = 0, valor_detalhamento_acao = 0, proporcao = 0)) %>% 
+  mutate(acao_orcamentaria = substr(dotacao, 19, 23)) %>% 
+  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, regiao, subprefeitura, proporcao, chave_da, valor_detalhamento_acao, total_smae) %>% 
+  arrange(meta, dotacao)   
+
+#checagens
+(d <- c %>% 
+  group_by(dotacao, meta) %>% 
+  summarise(chec = mean(total_smae)))
+
+(e <- c %>% 
+  group_by(dotacao) %>% 
+  summarise(chec = mean(chave_da)))
+
+(checagem8 <- sum(d$chec) == soma_smae)
+sum(d$chec)
+soma_smae - sum(d$chec)
+
+(checagem9 <- sum(e$chec) == soma_base_da_pdm)
+
+# Para investigar a diferença da checagem 8, vamos criar uma tabela com meta, valor smae da base b e valor smae da base smae, agrupados por meta. Dessa forma, será possível indentificar em qual meta há discrepância
+
+f <- base_smae %>% 
+  group_by(meta) %>% 
+  summarise(b_smae = sum(total_smae))
+
+g <- c %>% 
+  group_by(meta, dotacao) %>% 
+  summarise(b_da = mean(total_smae))
+
+h <- g %>% 
+  group_by(meta) %>% 
+  summarise(b_da = sum(b_da))
+
+i <- f %>% 
+  full_join(h, by = "meta") %>% 
+  mutate(dif =  b_da - f$b_smae) %>% 
+  filter(dif != 0) # a diferença se concentra na meta 4
+
+j <- c %>% 
+  filter(meta == 4) %>% 
+  group_by(acao_orcamentaria)
+
+dot_m4_da <- unique(j$dotacao)
+
+k <- base_smae %>% 
+  filter(meta == 4) %>% 
+  group_by(dotacao)
+
+dot_m4_smae <- unique(k$dotacao)
+
+(dot_m4 <- setdiff(dot_m4_smae, dot_m4_da))
+
+base_da1 %>% 
+  filter(dotacao %in% dot_m4) # 0
+
+base_da %>% 
+  filter(dotacao %in% dot_m4) # A diferença refere-se a despesas não regionalizáveis
+
+# Como não é possível sanar esta diferença, vamos considerar que a soma do valor smae é o da base_da_pdm
+
+base_da_pdm <- c
+
+soma_smae.x <- sum(d$chec)
+
+# checando se todas as proporções somam 1
+l <- c %>% 
+  group_by(dotacao) %>% 
+  summarise(prop = sum(proporcao)) %>% 
+  distinct() %>% 
+  filter(prop != 1) # Há diferenças apenas nas casas decimais
+
+rm("a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "chave_da")
+
+
+# Mesclar base_inf_orgaos
+base_da_pdm <- base_da_pdm %>% 
+  left_join(base_inf_orgaos, by = intersect(names(base_da_pdm), names(base_inf_orgaos))) %>% 
+  replace_na(list(valor_da_inf_orgao = 0))
+
+
+##### Acréscimo de valor de exec_fisica ####
+
+# acrescentar valor de exec_fisica
+url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alterar o link
+
+response <- httr::GET(url_balanco) # Fazendo a solicitação GET
+
+content <- httr::content(response, as = "raw") # Extraindo o conteúdo da resposta como um objeto raw
+
+temp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
+
+writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
+
+(base_exec_fisica <- readxl::read_excel(temp_file, sheet = "principal", skip = 2) %>% 
+    janitor::clean_names())
+
+(base_exec_fisica <- base_exec_fisica %>% 
+  rename(meta = x1,
+         txt_meta = x2,
+         indicador = x3,
+         objetivo_estrategico = x4,
+         iniciativas = x5,
+         eixo = x6,
+         ods = x7,
+         orgao = x8)) #necessário ajustar o padrão de pontuação (ora milhares está separado por "." ora por "," ora está sem separação)
+
+
+(base_exec_fisica_reg <- readxl::read_excel(temp_file, sheet = "regionalização", skip = 1) %>% 
+    janitor::clean_names())
+
+(base_exec_fisica_reg <- base_exec_fisica_reg %>% 
+  rename(meta = x1,
+         subprefeitura = x2)) # necessário padronizar nomes das subprefeituras conforme base_pdm_completa e preencher coluna meta, cujas células estão mescladas na planilha original
+
+
+# Padronizar nome das subprefeituras conforme base_da_pdm
+(base_exec_fisica_reg <- base_exec_fisica_reg %>% 
+  mutate(subprefeitura = case_when(
+           subprefeitura %in% "Aricanduva" ~ "Subprefeitura Aricanduva/Formosa/Carrão",
+           subprefeitura %in% "Butantã" ~ "Subprefeitura Butantã",
+           subprefeitura %in% "Campo Limpo" ~ "Subprefeitura Campo Limpo",
+           subprefeitura %in% "Capela do Socorro" ~ "Subprefeitura Capela do Socorro",
+           subprefeitura %in% "Casa Verde" ~ "Subprefeitura Casa Verde/Cachoeirinha",
+           subprefeitura %in% "Cidade Ademar" ~ "Subprefeitura Cidade Ademar",
+           subprefeitura %in% "Cidade Tiradentes" ~ "Subprefeitura Cidade Tiradentes",
+           subprefeitura %in% "Ermelino Matarazzo" ~ "Subprefeitura Ermelino Matarazzo",
+           subprefeitura %in% "Freguesia/Brasilândia" ~ "Subprefeitura Ermelino Matarazzo",
+           subprefeitura %in% "Guaianases" ~ "Subprefeitura de Guaianases",
+           subprefeitura %in% "Ipiranga" ~ "Subprefeitura Ipiranga",
+           subprefeitura %in% "Itaim Paulista" ~ "Subprefeitura Ipiranga",
+           subprefeitura %in% "Itaquera" ~ "Subprefeitura Itaquera",
+           subprefeitura %in% "Jabaquara" ~ "Subprefeitura Itaquera",
+           subprefeitura %in% "Jaçanã/Tremembé" ~ "Subprefeitura Jaçanã/Tremembé",
+           subprefeitura %in% "Lapa" ~ "Subprefeitura Lapa",
+           subprefeitura %in% "M'Boi Mirim" ~ "Subprefeitura M'Boi Mirim",
+           subprefeitura %in% "Mooca" ~ "Subprefeitura Mooca",
+           subprefeitura %in% "Parelheiros" ~ "Subprefeitura Parelheiros",
+           subprefeitura %in% "Penha" ~ "Subprefeitura Penha",
+           subprefeitura %in% "Perus/Anhanguera" ~ "Subprefeitura Perus/Anhanguera",
+           subprefeitura %in% "Pinheiros" ~ "Subprefeitura Pinheiros",
+           subprefeitura %in% "Pirituba/Jaraguá" ~ "Subprefeitura Pirituba/Jaraguá",
+           subprefeitura %in% "Santana/Tucuruvi" ~ "Subprefeitura Santana/Tucuruvi",
+           subprefeitura %in% "Santo Amaro" ~ "Subprefeitura Santo Amaro",
+           subprefeitura %in% "São Mateus" ~ "Subprefeitura São Mateus",
+           subprefeitura %in% "São Miguel Paulista" ~ "Subprefeitura São Miguel Paulista",
+           subprefeitura %in% "Sapopemba" ~ "Subprefeitura Sapopemba",
+           subprefeitura %in% "Sé" ~ "Subprefeitura Sé",
+           subprefeitura %in% "Vila Maria/Vila Guilherme" ~ "Subprefeitura Vila Maria/Vila Guilherme",
+           subprefeitura %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
+           TRUE ~ "Subprefeitura de Vila Prudente")))
+
+# Substituir NA na coluna meta
+(base_exec_fisica_reg <- base_exec_fisica_reg %>% 
+  fill(meta, .direction = "down"))
+
+# Selecionar apenas as colunas meta, subprefeitura e x2023, e apenas metas consideradas para o IDRGP
+
+(readxl::excel_sheets("metas_alteracao_programatica.xlsx"))
+
+metas_idrgp <- read_excel("metas_alteracao_programatica.xlsx", sheet = "metas") %>%
+  janitor::clean_names() %>% 
+  rename(meta = no) %>% 
+    filter(meta != 10) %>% 
+  select(meta)
+
+(metas_idrgp <- unique(metas_idrgp))
+
+(metas_idrgp <- unique(base_smae$meta)) # metas 27, 53, 79 não tiveram execução orçamentária
+
+(base_exec_fisica_reg_23 <- base_exec_fisica_reg %>% 
+  select(meta, subprefeitura, x2023)) 
+
+glimpse(base_exec_fisica_reg_23) # ao observar o df, percebemos que a coluna x2023 é chr e alguns registros e as casas decimais estão separadas por "," e não por "." (ex: base_exec_fisica_reg_23$x2023[202]), sendo necessário substituí-los para que não se tornem NA ao executar o comando as.numeric
+
+(base_exec_fisica_reg_23 <- base_exec_fisica_reg_23 %>% 
+  mutate(x2023 = gsub(",", ".", x2023)))
+
+(base_exec_fisica_reg_23$x2023 <- as.numeric(base_exec_fisica_reg_23$x2023))
+
+base_exec_fisica_reg %>% 
+  select(meta, subprefeitura, x2023) %>% 
+  filter(meta %in% c("27", "53", "79")) # Houve execução física para as metas 27 e 79, porém não há elementos para atribuir valores às subprefeituras
+
+(base_exec_fisica_reg_23 <- base_exec_fisica_reg_23 %>% 
+  filter(meta %in% metas_idrgp) %>% 
+    rename(exec_fisica = x2023)) # Vamos, então, selecionar apenas as metas consideradas para o monitoramento do IDRGP
+
+
+# Juntar com base_da_pdm
+(a <- base_da_pdm %>% 
+  left_join(base_exec_fisica_reg_23, by = c("meta", "subprefeitura")) %>% 
+  distinct() %>% 
+    replace_na(list(exec_fisica = 0)))
+
+(b <- a %>% 
+  group_by(dotacao, meta) %>% 
+  summarise(chec = mean(total_smae)))
+
+(c <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(chec = sum(valor_detalhamento_acao)))
+
+(checagem8 <- sum(b$chec) == soma_smae.x)
+
+(checagem9 <- sum(c$chec) == soma_base_da_pdm)
+
+d <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(prop = sum(proporcao)) %>% 
+  distinct() %>% 
+  filter(prop != 1) %>% 
+  arrange(desc(prop))
+
+a %>% 
+  filter(dotacao == "84.10.10.301.3003.2.520.44505200.00.1.500.7034.1") #c omo o join entre base_exec_reg_23 e base_da_pdm ampliou o número de linhas, será necessário recalcular a coluna proporcao
+
+a <- a %>% 
+  group_by(dotacao) %>% 
+  mutate(proporcao = valor_detalhamento_acao / sum(valor_detalhamento_acao))
+
+e <- a %>% 
+  group_by(dotacao) %>% 
+  summarise(prop = sum(proporcao)) %>% 
+  distinct() %>% 
+  filter(prop != 1) %>% 
+  arrange(desc(prop))      # diferença nas casas decimais
+
+base_da_pdm <- a
+
+
+##### Aplicação de proporções (regionais) ao total_smae ####
+
+# recalcular o total_smae, distribuindo os valores por regiões
+a <- base_da_pdm %>% 
+  mutate(total_smae.p = total_smae*proporcao)
+
+Checagem10 <- sum(a$total_smae.p) == soma_smae.x
+
+a <- a %>% 
+  select(-chave_da, -proporcao, -total_smae) %>% 
+  mutate(estimativa = if_else(exec_fisica == 0, 0, total_smae.p / exec_fisica))
+
+a <- a %>% 
+  mutate(valor_liquidado = case_when(
+    meta == 17 ~ estimativa,
+    orgao %in% c("SMS", "SMC") ~ valor_da_inf_orgao,
+    TRUE ~ total_smae.p
+  ))
+
+sum(a$valor_liquidado)
+
+a <- a %>% 
+  rename(total_smae = total_smae.p) %>% 
+  select(meta, txt_meta, dotacao, acao_orcamentaria, orgao, sigla_orgao, subprefeitura, exec_fisica, valor_detalhamento_acao, valor_da_inf_orgao, estimativa, total_smae, valor_liquidado)
+
+base_da_pdm <- a
+
+rm(list = c("a", "b", "c", "d", "e", "response", "content", "temp_file", "url_balanco"))
+
+```
+
+Com a base ajustada, faremos manipulações para explorar os dados e visualizações
+
+```{r}
+
+##### Se o IDRGP fosse composto apenas pelo PdM, como seria a situação em 20203? ####
+
+gp_idrgp_pdm <- base_da_pdm %>% 
+  group_by(subprefeitura) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  rename(sp_nome = subprefeitura) %>% 
+  left_join(ref_idrgp, by = "sp_nome") %>% 
+  mutate(g_perc = valor_liquidado / sum(valor_liquidado),
+         diferenca = g_perc - ref_idrgp) %>% 
+  arrange(desc(ref_idrgp))
+
+gp_idrgp_pdm %>% 
+  mutate("Status" = case_when(
+    gp_idrgp_pdm$diferenca < 0 ~ "Execução MENOR do que a referência pelo IDRGP",
+    gp_idrgp_pdm$diferenca >= 0 ~ "Execução MAIOR do que a referência pelo IDRGP"
+  )) %>% 
+  ggplot() +
+  geom_col(aes(x = g_perc,
+               y = forcats::fct_reorder(sp_nome, ref_idrgp),
+               fill = Status),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("#0A447F", "orange")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = sp_nome,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "IDRGP PdM 2023",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
+
+##### Como os valores liquidados do PdM se distribuiram territorialmente? ####
+
+a <- gp_idrgp_pdm %>% 
+  left_join(subprefeitura, by = c("sp_nome", "ref_idrgp")) %>% 
+  st_as_sf()
+
+str(a)
+
+ggplot(data = a) +
+  geom_sf(aes(fill = g_perc, geometry = geometry)) +
+  geom_sf_text(aes(label = sigla), color = "black", size = 1.5, fontface = "bold") + 
+  scale_fill_gradient(low = "lightblue", high = "darkblue") +
+  theme_void()
+
+
+##### Quais orgãos tiveram maior valor_liquidado em 2023? ####
+
+b <- base_da_pdm %>% 
+  group_by(orgao) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  arrange(desc(valor_liquidado))
+
+b %>% 
+  ggplot() +
+   geom_col(aes(x = valor_liquidado,
+               y = forcats::fct_reorder(orgao, valor_liquidado)))
+
+
+##### Quais políticas públicas (ações orçamentárias) tiveram mais recursos liquidados? ####
+
+c <- base_da_pdm %>% 
+  group_by(acao_orcamentaria) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  arrange(desc(valor_liquidado))
+
+c %>% 
+  ggplot() +
+   geom_col(aes(x = valor_liquidado,
+               y = forcats::fct_reorder(acao_orcamentaria, valor_liquidado)))
+
+
+
+```
+
+
+### Base de Obras Prioritárias
+
+Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP.
 
 ```{r Limpando a base de obras prioritárias, message=FALSE, warning=FALSE, include=FALSE}
+ 
 op <- read_xlsx("base_monitoramento_obras.xlsx")
 op <- op %>% 
   filter(`Meta PdM`== "Não", valor_liquidado_total>0)
@@ -209,12 +1277,9 @@ op<- op %>%
     Subprefeitura %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
     TRUE ~ "Subprefeitura de Vila Prudente"))
 
-
 ```
 
-
-Então, descobrimos o valor total empenhado e agregamos as observações por Subprefeitura para realizar as análises 
-
+Então, descobrimos o valor total empenhado e agregamos as observações por Subprefeitura para realizar as análises
 
 ```{r Obras Prioritárias por Subprefeitura, echo=FALSE}
 
@@ -260,7 +1325,6 @@ obras_prioritarias<- obras_prioritarias %>%
 
 ```
 
-
 Em seguida, conectamos com a base catográfica para georreferenciar os dados
 
 ```{r Obras Prioritárias regionalizado, echo=FALSE}
@@ -302,7 +1366,6 @@ op %>%
 ```
 
 
-=======
 ### Base do Orçamento Cidadão
 
 Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Fazenda (SF) e tratada por SEPEP para desvincular os projetos que também estão inseridos no escopo do Programa de Metas.
@@ -363,12 +1426,11 @@ df_sub_oc <- df_oc %>%
   summarise(total_oc = sum(Liquidação))
 sum(df_sub_oc$total_oc)
 print(df_sub_oc)
+
 ```
 
 
-
 Os valores do Orçamento Cidadão estão concentrados em apenas 6 subprefeituras, totalizando R$ 35.400.344. 
-
 
 Agora vamos construir uma base do Orçamento Cidadão com os dados de georreferenciamento para, posteriormente, juntar com as bases do PdM e das Obras Prioritárias.
 
@@ -389,7 +1451,6 @@ idrgp_oc %>%
 
 
 Por fim, com objetivo meramente descritivo, vamos visualizar os dados do Orçamento Cidadão em três gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura e a liquidação por Ação Orçamentária.
-
 
 
 ```{r Gráficos do orçamento Cidadão, echo=FALSE}
@@ -429,4 +1490,5 @@ df_oc %>%
 
 ##
 ```
+
 
