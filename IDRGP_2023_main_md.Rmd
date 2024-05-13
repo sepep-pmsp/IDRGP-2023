@@ -133,6 +133,8 @@ subprefeitura %>%
 
 ```
 
+
+
 ### Bases do PdM 2021-2024
 
 Nesta seção, detalhamos os processos de obtenção e transformação dos dados de execução física e orçamentária do Programa de Metas. Para efeitos de monitoramento do IDRGP 2023, são considerados 28 compromissos do Programa de Metas 2021-2024 versão Alteração Programática. Tanto os dados de execução física quanto os da execução orçamentária são inseridos por cada órgão responsável no Sistema de Monitoramento e Acompanhamento Estratégico (SMAE).
@@ -1197,10 +1199,10 @@ c %>%
 
 ```
 
-
-### Base de Obras Prioritárias
+### Adicionando a base de Obras Prioritárias
 
 Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela Unidade de Entregas da SEPEP, padronizar nomes e realizar filtros, como os que removem obras de mobilidade e macrodrenagem, bem como “Requalificação”, “Restauro” e “Manutenção” com valores inferiores a um milhão de reais, pois estas obras não compõem  o cálculo do IDRGP.
+
 
 ```{r Limpando a base de obras prioritárias, message=FALSE, warning=FALSE, include=FALSE}
  
@@ -1339,7 +1341,6 @@ idrgp_op %>%
 
 ```
 
-
 Por fim, com objetivo meramente descritivo, vamos visualizar os dados das Obras Prioritárias em dois gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura (ainda não obtemos os dados de liquidação por Ação Orçamentária).
 
 ```{r gráficos Obras Prioritárias, echo=FALSE}
@@ -1366,7 +1367,6 @@ op %>%
 ```
 
 
-### Base do Orçamento Cidadão
 
 Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Fazenda (SF) e tratada por SEPEP para desvincular os projetos que também estão inseridos no escopo do Programa de Metas.
 
@@ -1427,13 +1427,14 @@ df_sub_oc <- df_oc %>%
 sum(df_sub_oc$total_oc)
 print(df_sub_oc)
 
+
 ```
 
 
 Os valores do Orçamento Cidadão estão concentrados em apenas 6 subprefeituras, totalizando R$ 35.400.344. 
 
-Agora vamos construir uma base do Orçamento Cidadão com os dados de georreferenciamento para, posteriormente, juntar com as bases do PdM e das Obras Prioritárias.
 
+Agora vamos construir uma base do Orçamento Cidadão com os dados de georreferenciamento para, posteriormente, juntar com as bases do PdM e das Obras Prioritárias.
 
 ```{r Base orçamento Cidadão Georreferênciada, echo=FALSE}
 
@@ -1448,7 +1449,6 @@ idrgp_oc %>%
   geom_sf_text(aes(label = sigla), color = "black", size = 1.5, fontface = "bold") + 
   theme_void()
 ```
-
 
 Por fim, com objetivo meramente descritivo, vamos visualizar os dados do Orçamento Cidadão em três gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura e a liquidação por Ação Orçamentária.
 
@@ -1489,6 +1489,261 @@ df_oc %>%
   theme_minimal()
 
 ##
+```
+
+
+### Criando uma base única para o cálculo do IDRGP
+
+Agora vamos juntar as bases do Orçamento Cidadão, Obras Prioritárias e Programa de Metas para clacular o IdRGP.
+
+Além disso, também vamos calculara soma total do valor liquidado por subprefeitura; o percentual que esse valor representa entre elas e a diferença entre esse percentual e o percentual de referencia do IDRGP.
+
+```{r Valores totais, echo=FALSE}
+
+#Junatndo bancos
+idrgp<- full_join(obras_prioritarias, df_sub_oc, by = "sp_nome")
+idrgp<- full_join(idrgp, gp_idrgp_pdm, by = "sp_nome")
+idrgp<- full_join(subprefeitura, idrgp, by = "sp_nome")
+
+idrgp<- idrgp %>% 
+  mutate(total_oc = ifelse( is.na(total_oc), 0, total_oc))
+idrgp<- idrgp %>% 
+  mutate(total_idrgp_23 = total_oc + total_op,
+         p_liq_23 = total_idrgp_23/sum(total_idrgp_23), 
+         diferenca23 = p_liq_23 - ref_idrgp)
+idrgp %>% select(NOME, total_idrgp_23, p_liq_23, diferenca23)
+
+```
+
+### Intervalo de confiança
+
+Agora, vamos calclualr o intervalo de confiança para o índice de referÊncia. Para isso, primeiramente, vamos avaliar se os dados correspondem a uma distribuição normal.
+
+Primeiramente, realizaremos um teste Shapiro de Normalidade e, na sequência, um Teste Kolmogorov-Smirnov.
+
+```{r Testes de normalidade, echo=FALSE}
+
+# Teste Shapiro. testa na normalidade dos dados do índice de referância.
+shapiro.test(idrgp$ref_idrgp)
+#O p-valor for < 0.05 indica que os dados não apresentam normalidade.
+# No caso, o resultado encontrado aponta que os dados poderiam ser enquadrados numa distribuição normal.
+
+# Teste Kolmogorov-Smirnov. Também tesa a normalidade dos dados.
+ks.test(idrgp$ref_idrgp,"pnorm",mean(idrgp$ref_idrgp),sd(idrgp$ref_idrgp))
+# O tsste também resultou em (não rejeição) curva normal para os dados. 
+
+```
+
+Ambos os testes não rejeitaram a aproximação dos dados de referência do IDRGP como uma curva normal.
+
+Com isso, torna-se possível construir um intervalo de confiança tanto a partir do desvio padrão, quanto a partir de um t.test pareando a distribuição do índice de referência e o percentual total.
+
+Calcularemos os dois:
+
+-   Para o cálculo do intervalo de confiança tradicional, adotaremos o rigor de 3 sigmas, sobre o valor de referência do IRDGP.
+
+-   Para o t.test pareado, manteremos o padrão de 95% de confiança, pois as curvas já estão se ajustando entre si pela diferença.
+
+```{r Intervalo de Confiança, echo= FALSE}
+
+#Intervalo de confiança com 3 sigmas
+idrgp<- idrgp %>% 
+  mutate(int_inf= ref_idrgp - 3*(sd(ref_idrgp)/sqrt(32)),
+         int_sup= ref_idrgp + 3*(sd(ref_idrgp)/sqrt(32)))
+idrgp<- idrgp %>% 
+  mutate("Status1" = case_when(
+    idrgp$p_liq_23 <  int_inf ~ "Aquem da referência do IDRGP",
+    idrgp$p_liq_23 >  int_sup ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+
+
+teste_t<-t.test(idrgp$ref_idrgp, idrgp$p_liq_23, paired = T)
+idrgp<- idrgp %>% 
+  mutate("Status2" = case_when(
+    idrgp$diferenca23 <  teste_t$conf.int[1] ~ "Aquem da referência do IDRGP",
+    idrgp$diferenca23 >  teste_t$conf.int[2] ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+
+idrgp %>% select(NOME, Status1, Status2)
+case_when(idrgp$Status1 != idrgp$Status2 ~ idrgp$NOME)
+
+
+```
+
+O resulado do primeiro intervalo é relativamente próximo ao t.test (95%), a única diferença foi para a Subprefeitura de Campo Limpo [Confirmar após ter os dados do PdM]
+
+Podemos visualizar a distribuição da distância entre o valor de referênncia e os resultados de 2023 nos gráficos abaixo, referentes a cada intervalo de confiança adotado.
+
+```{r gráficos de diferença, echo=FALSE }
+# gráfico percentual liquidado x referência
+idrgp %>% 
+  ggplot() +
+  geom_col(aes(x = p_liq_23,
+               y = forcats::fct_reorder(sp_nome, ref_idrgp),
+               fill = Status2),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = sp_nome,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "IDRGP 2023",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
+
+# Gráfico da distância 1
+idrgp %>% 
+  ggplot() +
+  geom_col(aes(x = diferenca23,
+               y = NOME,
+               fill = Status1),
+           show.legend = T) +
+  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  labs(title = "Distâcias do IDRGP 2023 ao referencial",
+       y = "") +
+  theme_minimal()
+
+# Gráfico da distância 2
+idrgp %>% 
+  ggplot() +
+  geom_col(aes(x = diferenca23,
+               y = NOME,
+               fill = Status2),
+           show.legend = T) +
+  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  labs(title = "Distâcias do IDRGP 2023 ao referencial",
+       y = "") +
+  theme_minimal()
+
+```
+
+### Visualizações Gráficas
+
+Para melhor compreender a distribuição do IDRGP no território da cidade, apresentamos abaixo três mapas.
+
+-   O primiro oferece a visualização do valor total liquidado em cada uma das Subprefeituras, segundo o que foi apurado para o IDRGP.
+-   O segundo, corresponde ao índice em si, isto é o cálculo da diferença entre o valor de referencia e o percentual do orçamento liquidado por Subprefeitura.
+-   Finalente, o terceiro, permite visualizar a composição do índice, de acordo com o intervalo de confiança de 95% a partir do teste t pareado.
+
+```{r Mapas, echo=FALSE}
+
+# Mapa 1 - valor liquidado 2023
+idrgp %>% 
+  ggplot()+
+  geom_sf(aes(fill = total_idrgp_23, geometry = geometry)) +
+  scale_fill_gradient(low="white",high="blue") +
+  geom_sf_text(aes(label = sigla), color = "black", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Valor liquidado utilizado no cálculo do IDRGP 2023*",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+
+# Mapa 2 - diferença 2023
+idrgp %>% 
+  ggplot()+
+  geom_sf(aes(fill = diferenca23, geometry = geometry)) +
+  scale_fill_gradient(low="red",high="yellow") +
+  geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Índice da Distribuição Regional do Gasto Público, 2023*",
+       subtitle = "*Diferença entre valor de refencia do índice e o percentual liquidado do orçamento ",
+       fill = "Diferença",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+
+# mapa 3 - análise IDRGP
+idrgp %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status2)) +
+  scale_fill_manual(values = c("yellow","red", "blue")) +
+  geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Variação significativa do gasto de 2023 da referência do IDRGP",
+       subtitle = "t.test pareado com intervalo de confiança de 95%",
+       fill = "Aproximação do IDRGP",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+```
+
+### Comparando com os dados de 2022
+
+Por fim, vamos traçar um paralelo com os dados do IDRGP 2022
+
+```{r mapa idrgp22, echo=FALSE}
+###Inserndo dados de 2022
+idrgp22<- read_excel("consolidado_idrgp_2022.xlsx")
+idrgp22<- idrgp22 %>% 
+  mutate(tot22= sum(idrgp_2022),
+         ref22= sum(valor_por_ano),
+         p_liq_22 = ( liq_pdm +liq_obras + liq_oc )/tot22, 
+         ref_idrgp22 = valor_por_ano/ref22,
+         diferenca22= p_liq_22 - ref_idrgp22)
+t.test(idrgp22$p_liq_22, idrgp22$ref_idrgp22)
+idrgp22<- idrgp22 %>% 
+  mutate("Status" = case_when(
+    idrgp22$diferenca22 <  - 0.01244564 ~ "Aquem da referência do IDRGP",
+    idrgp22$diferenca22 >  0.01244564 ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+idrgp22<- idrgp22 %>% 
+  rename(NOME = sp_nome)
+idrgp22<- idrgp22 %>% 
+  mutate(NOME = ifelse(NOME == "M'BOI MIRIM", "M BOI MIRIM", NOME))
+map_22<- inner_join(idrgp22, subprefeitura, by = "NOME")
+map_22 %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status, geometry = geometry )) +
+  scale_fill_manual(values = c("yellow","red", "blue")) +
+  geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Variação significativa do gasto de 2022 da referência do IDRGP",
+       subtitle = "t.test com intervalo de confiança de 95%",
+       fill = "Aproximação do IDRGP",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+```
+
+
+### IDRGP do biênio 2022-2023
+
+Também é possível agregar os dados dos anso de 2022 e 2023 e ter um retrato do biênio
+
+
+```{r IDRGP 22+23, echo=FALSE}
+
+### Soma dos gastos de 2022 e 2023
+mapa_22e23<- inner_join( map_22, idrgp, by = c("NOME", "sigla", "geometry", "sp_nome", "ref_idrgp"))
+mapa_22e23<- mapa_22e23 %>% 
+  mutate(liq_22e23 = idrgp_2022 + total_idrgp_23,
+         p_liq_22e23 = liq_22e23/ sum(liq_22e23)) %>% 
+  select(sigla, NOME, sp_nome, geometry, ref_idrgp, idrgp_2022, total_idrgp_23, liq_22e23, p_liq_22e23)
+mapa_22e23<- mapa_22e23 %>% 
+  mutate(diferenca = p_liq_22e23 - ref_idrgp)
+
+teste_t_agreg<-t.test(mapa_22e23$ref_idrgp, mapa_22e23$p_liq_22e23, paired = T)
+mapa_22e23<- mapa_22e23 %>% 
+  mutate("Status" = case_when(
+    mapa_22e23$diferenca <  teste_t_agreg$conf.int[1] ~ "Aquem da referência do IDRGP",
+    mapa_22e23$diferenca >  teste_t_agreg$conf.int[2] ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+
+
+mapa_22e23 %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status, geometry = geometry )) +
+  scale_fill_manual(values = c("yellow","red", "blue")) +
+  geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Variação significativa do gasto no biênio 2022 e 2023 da referência do IDRGP",
+       subtitle = "t.test com intervalo de confiança de 95%",
+       fill = "Aproximação do IDRGP",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+
 ```
 
 
