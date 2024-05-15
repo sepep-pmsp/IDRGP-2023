@@ -796,9 +796,6 @@ a <- a %>%
   mutate(valor_detalhamento_acao = valor_detalhamento_acao.x + valor_rateio) %>% 
   filter(!str_detect(subprefeitura, "Supra"))
 
-#checagem5 <- sum(a$valor_detalhamento_acao) == soma_da_base2
-#soma_da_base2 - sum(a$valor_detalhamento_acao)
-
 a <- a %>% 
   filter(valor_detalhamento_acao > 0) %>% 
   select(dotacao, subprefeitura, regiao, sigla_orgao, valor_detalhamento_acao)
