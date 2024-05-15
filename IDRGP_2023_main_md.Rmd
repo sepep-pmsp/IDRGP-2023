@@ -226,8 +226,10 @@ O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponi
 # obter base de dados do DA
 base_da <- readr::read_csv2("basedadosDA_1223.csv",
                           locale = locale(encoding = "latin1")) %>%
-  janitor::clean_names()
-## também poreia ser baixado em "https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv"
+  janitor::clean_names() # extração em 15/05/2024, valores D-1 (portanto, 14/05/2024)
+
+## também poderia ser baixado em "https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv"
+## 
 
 base::names(base_da)
 
