@@ -795,9 +795,6 @@ a <- a %>%
   mutate(valor_detalhamento_acao = valor_detalhamento_acao.x + valor_rateio) %>% 
   filter(!str_detect(subprefeitura, "Supra"))
 
-checagem5 <- sum(a$valor_detalhamento_acao) == soma_da_base2
-soma_da_base2 - sum(a$valor_detalhamento_acao)
-
 a <- a %>% 
   filter(valor_detalhamento_acao > 0) %>% 
   select(dotacao, subprefeitura, regiao, sigla_orgao, valor_detalhamento_acao)
@@ -1503,7 +1500,7 @@ Além disso, também vamos calculara soma total do valor liquidado por subprefei
 #Junatndo bancos
 idrgp<- full_join(obras_prioritarias, df_sub_oc, by = "sp_nome")
 idrgp<- full_join(idrgp, gp_idrgp_pdm, by = "sp_nome")
-idrgp<- full_join(subprefeitura, idrgp, by = "sp_nome")
+idrgp<- full_join(subprefeitura, idrgp, by = c("sp_nome", "ref_idrgp"))
 
 idrgp<- idrgp %>% 
   mutate(total_oc = ifelse( is.na(total_oc), 0, total_oc))
