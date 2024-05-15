@@ -1747,7 +1747,7 @@ mapa_22e23 %>%
 
 ```{r}
 
-##### Conparação 2022 e 2023
+##### Comparação 2022 e 2023
 
 (a <- idrgp22 %>% 
    select(NOME, idrgp_2022, ref_idrgp22) %>%
@@ -1756,30 +1756,103 @@ mapa_22e23 %>%
   idrgp22 = idrgp_2022))
 
 (b <- idrgp %>% 
-    select(NOME, total_idrgp_23) %>% 
-    rename(
-  subprefeitura = NOME,
-  idrgp23 = total_idrgp_23))
+    select(NOME, total_idrgp_23, Status1) %>%
+    rename(subprefeitura = NOME,
+           idrgp23 = total_idrgp_23))
 
 (comparacao <- left_join(a, b, by = intersect(names(a), names(b))) %>% 
-    arrange(desc)
+    arrange(desc(ref_idrgp22)) %>% 
     mutate(valor_esperado = ref_idrgp22*1250000000))
 
 comparacao_long <- gather(comparacao, key = "idrgp", value = "valor", idrgp22, idrgp23)
 
+comparacao_long <- comparacao_long %>%
+  mutate(subprefeitura = factor(subprefeitura, levels = unique(subprefeitura[order(idrgp, decreasing = TRUE)])))
+
 # Análise Gráfica
 
 ggplot(comparacao_long, aes(x = subprefeitura, y = valor, fill = idrgp)) +
-  geom_bar(stat = "identity", position = "stack") +
-  geom_line(data = comparacao_long, aes(x = subprefeitura, y = valor_esperado, group = subprefeitura), color = "orange", linetype = "dashed", size = 0.25) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = comparacao_long, aes(x = subprefeitura, y = valor_esperado, group = Status1), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(Status1), nrow = 3)+
   labs(x = NULL, y = NULL, fill = NULL) +
-  facet_wrap(~subprefeitura, scales = "free_x") + 
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         legend.position = "bottom")
+
+rm(list = c("a", "b"))
   
+
+```
+
+#### Fichas das subprefeituras
+
+```{r}
+
+##### Glossário de ações orçamentárias ####
+
+colnames(base_da)
+
+txt_acao_orc <- base_da %>% 
+  filter(tipo_regionalizacao == "Despesa Regionalizável") %>% 
+  select(codigo_proj_ativ, descricao_proj_ativ) %>% 
+  mutate(codigo_proj_ativ = str_replace(codigo_proj_ativ, "^(.{1})(.*)$", "\\1.\\2")) %>%
+  rename(acao_orcamentaria = codigo_proj_ativ) %>% 
+  unique()
+
+
+
+##### Fichas das subprefeituras ####
+
+a <- base_da_pdm %>% 
+  group_by(subprefeitura, acao_orcamentaria) %>% 
+  summarise(liq_pdm = sum(valor_liquidado),
+            acao_orcamentaria = first(acao_orcamentaria)) %>% 
+  filter(liq_pdm > 0)
+
+sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
+
+
+colnames(df_oc)
+
+b <- df_oc %>% 
+  select(-META, -Secretaria, - DOTACAO) %>% 
+  rename(subprefeitura = sp_nome,
+         liq_oc = `Liquidação`,
+         acao_orcamentaria = acao_orc) %>% 
+  group_by(subprefeitura, acao_orcamentaria) %>% 
+  summarise(liq_oc = sum(liq_oc),
+            acao_orcamentaria = first(acao_orcamentaria)) %>% 
+  filter(liq_oc > 0)
+
+c <- op %>% 
+  select(sp_nome, valor_liquidado_total, acao_orcamentaria) %>% 
+  rename(subprefeitura = sp_nome,
+         liq_op = valor_liquidado_total) %>% 
+  group_by(subprefeitura, acao_orcamentaria) %>% 
+  summarise(liq_op = sum(liq_op),
+            acao_orcamentaria = first(acao_orcamentaria)) %>% 
+  filter(liq_op > 0)
+
+fichas_subp <- a %>% 
+  full_join(b, by = intersect(names(a), names(b))) %>% 
+  replace_na(list(liq_pdm = 0, liq_oc = 0)) %>% 
+  arrange(subprefeitura, acao_orcamentaria)
+
+fichas_subp <- fichas_subp %>%
+  full_join(c, by = intersect(names(fichas_subp), names(c))) %>% 
+  replace_na(list(liq_pdm = 0, liq_oc = 0, liq_op = 0))
+
+fichas_subp <- fichas_subp %>% 
+  left_join(txt_acao_orc, by = "acao_orcamentaria")
+
+fichas_subp <- fichas_subp %>% 
+  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_pdm, liq_oc, liq_op) %>% 
+  mutate(liq_23 = liq_pdm + liq_oc + liq_op)
+
+
 
 ```
 
