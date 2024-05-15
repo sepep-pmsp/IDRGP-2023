@@ -3,8 +3,8 @@ title: "IDRGP 2023"
 author: "FPR e DG"
 date: "2024-04-05"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 # IDRGP 2023
@@ -153,7 +153,7 @@ Nos casos em que a dotação orçamentária não abarcou desepesas exclusivas do
 
 Introduzidas as passagens que originaram os dados da execução física e orçamentária do Programa de Metas, apresentamos, a seguir, as manipulações para a criação de objetos necessários à análise dos dados, a começar pela importação e tratamentos preliminares.
 
-```{r}
+```{r echo=FALSE}
 
 #ler a aba totais_metas
 base_smae <- read_excel("metas_alteracao_programatica.xlsx", sheet = "smae_x_da") %>%
@@ -221,12 +221,13 @@ base_inf_orgaos %>%
 
 O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponibilizada pela Secretaria da Fazenda.
 
-```{r paged.print=TRUE}
+```{r echo=FALSE, paged.print=TRUE}
 
 # obter base de dados do DA
-base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
+base_da <- readr::read_csv2("basedadosDA_1223.csv",
                           locale = locale(encoding = "latin1")) %>%
   janitor::clean_names()
+## também poreia ser baixado em "https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv"
 
 base::names(base_da)
 
@@ -277,7 +278,7 @@ soma_da_base1 <- sum(base_da1$valor_detalhamento_acao)
 ```
 
 Tendo acesso ao universo de dotações regionalizadas que tiveram execução em 2023, vamos prosseguir com o tratamento das dotações incompletas das bases smae e valor_inf_orgao
-```{r}
+```{r include=FALSE}
 
 # O tratamento das dotações incompletas consiste em ratear o valor total_smae conforme a proporção de cada dotação completa contida no agruamento da dotação incompleta. O produto final será a base_smae com dotacoes equiráveis à base_da1, mas com os valores total_smae ajustados proporcionalmente.
 
@@ -662,7 +663,7 @@ dotacao_inf_orgao <- unique(base_inf_orgaos$dotacao)
 
 As bases base_smae e base_inf_orgaos estão prontas para serem mescladas. É necessário, agora, tratar a base_da1, distribuindo os valores cuja regionalização foi apontada como sendo supra regional para as subprefeituras que compõem cada região. Após esse procedimento, vamos calcular a proporção gasta em cada região para ter como resultado uma das estratégias de obtenção do valor regionalizado dos recursos liquidados nas ações do Programa de Metas, monitorados no IDRGP.
 
-```{r}
+```{r include=FALSE}
 
 ## Ratear valores de subprefeitura=="Supra Subprefeitura Região X" nas respectivas subprefeituras da Região X
 suporte_rateio_regioes <- base_da1 %>% 
@@ -825,7 +826,7 @@ rm(list = c("a", "b"))
 ```
 
 Agora, inserimos informações sobre as execuções física e orçamentária do Programa de Metas, combinando as bases: base_smae, base_inf_orgaos e comp_sub_dot. Também trabalhamos com as informações sobre a execução física regionalizada do Programa de Metas. Com isso, chegamos a uma base com as três estratégias de regionalização da execução orçamentária das metas, a saber: regionalização pelo DA (ou proporção); informação direta do órgão e estimativa a partir da razão entre valor liquidado e execução física.
-```{r}
+```{r include=FALSE}
 
 ##### Criação da base_da_pdm - join base_da, base_smae, base_inf_orgaos #####
 
@@ -935,18 +936,23 @@ base_da_pdm <- base_da_pdm %>%
 ##### Acréscimo de valor de exec_fisica ####
 
 # acrescentar valor de exec_fisica
-url_balanco <- "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alterar o link
 
-response <- httr::GET(url_balanco) # Fazendo a solicitação GET
+#seguir o caminho abaixo (desabilitado), baixando diretamente do  site, ou aqui:
+base_exec_fisica <- readxl::read_excel("Relatório de Execução Anual do Programa de Metas 2021-2024 (Abril2024) (1).xlsx", sheet = "principal", skip = 2) %>% 
+    janitor::clean_names()
 
-content <- httr::content(response, as = "raw") # Extraindo o conteúdo da resposta como um objeto raw
+#url_balanco <-  "https://www.prefeitura.sp.gov.br/cidade/secretarias/upload/governo/planejamento/Relat%C3%B3rio%20de%20Execu%C3%A7%C3%A3o%20Anual%20do%20Programa%20de%20Metas%202021-2024%20(Abril2024).xlsx" #note que o documento é de abril. Caso o documento seja atualizado, necessário alterar o link
 
-temp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
+#response <- httr::GET(url_balanco) # Fazendo a solicitação GET
 
-writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
+#content <- httr::content(response, as = "raw") # Extraindo o conteúdo da resposta como um objeto raw
 
-(base_exec_fisica <- readxl::read_excel(temp_file, sheet = "principal", skip = 2) %>% 
-    janitor::clean_names())
+t#emp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
+
+#writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
+
+#(base_exec_fisica <- readxl::read_excel(temp_file, sheet = "principal", skip = 2) %>% 
+#    janitor::clean_names())
 
 (base_exec_fisica <- base_exec_fisica %>% 
   rename(meta = x1,
@@ -959,8 +965,10 @@ writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
          orgao = x8)) #necessário ajustar o padrão de pontuação (ora milhares está separado por "." ora por "," ora está sem separação)
 
 
-(base_exec_fisica_reg <- readxl::read_excel(temp_file, sheet = "regionalização", skip = 1) %>% 
-    janitor::clean_names())
+#(base_exec_fisica_reg <- readxl::read_excel(temp_file, sheet = "regionalização", skip = 1) %>% 
+ #   janitor::clean_names())
+base_exec_fisica_reg <- readxl::read_excel("Relatório de Execução Anual do Programa de Metas 2021-2024 (Abril2024) (1).xlsx", sheet = "regionalização", skip = 1) %>% 
+    janitor::clean_names()
 
 (base_exec_fisica_reg <- base_exec_fisica_reg %>% 
   rename(meta = x1,
@@ -1115,7 +1123,7 @@ rm(list = c("a", "b", "c", "d", "e", "response", "content", "temp_file", "url_ba
 
 Com a base ajustada, faremos manipulações para explorar os dados e visualizações
 
-```{r}
+```{r echo=FALSE}
 
 ##### Se o IDRGP fosse composto apenas pelo PdM, como seria a situação em 20203? ####
 
@@ -1203,9 +1211,9 @@ Para gerar a base de Obras Priotirárias, iremos abrir a base encaminhada pela U
 
 ```{r Limpando a base de obras prioritárias, message=FALSE, warning=FALSE, include=FALSE}
  
-op <- read_xlsx("base_monitoramento_obras.xlsx")
+op <- read_xlsx("base_monitoramento_obras_2.xlsx")
 op <- op %>% 
-  filter(`Meta PdM`== "Não", valor_liquidado_total>0)
+  filter(`Meta PdM`== "Não", valor_liquidado_2023>0)
 
 op <- op %>% 
   mutate(analise = ifelse(`Tipo de obra/intervenção`== "Requalificação", "analisar", NA ),
@@ -1213,13 +1221,13 @@ op <- op %>%
          analise = ifelse(`Tipo de obra/intervenção`== "Manutenção", "analisar", analise),
          analise = ifelse(`Tipo de obra/intervenção`== "Requalificação ", "analisar", analise ))
 op <- op %>% 
-  mutate(decisão1 = ifelse(`Tipo de obra/intervenção`== "Requalificação" & valor_liquidado_total<1000000, "excluir", "manter"))
+  mutate(decisão1 = ifelse(`Tipo de obra/intervenção`== "Requalificação" & valor_liquidado_2023<1000000, "excluir", "manter"))
 op <- op %>% 
-  mutate(decisão2 = ifelse(`Tipo de obra/intervenção`== "Restauro" & valor_liquidado_total<1000000, "excluir", "manter"))
+  mutate(decisão2 = ifelse(`Tipo de obra/intervenção`== "Restauro" & valor_liquidado_2023<1000000, "excluir", "manter"))
 op <- op %>% 
-  mutate(decisão3 = ifelse(`Tipo de obra/intervenção`== "Manutenção" & valor_liquidado_total<1000000, "excluir", "manter"))
+  mutate(decisão3 = ifelse(`Tipo de obra/intervenção`== "Manutenção" & valor_liquidado_2023<1000000, "excluir", "manter"))
 op <- op %>% 
-  mutate(decisão4 = ifelse(`Tipo de obra/intervenção`== "Requalificação " & valor_liquidado_total<1000000, "excluir", "manter"))
+  mutate(decisão4 = ifelse(`Tipo de obra/intervenção`== "Requalificação " & valor_liquidado_2023<1000000, "excluir", "manter"))
 op <- op %>%
   filter(decisão1=="manter" & decisão2=="manter" & decisão3== "manter" & decisão4=="manter")
 
@@ -1237,9 +1245,10 @@ op <- op %>%
 op <- op %>% 
   mutate(Subprefeitura = ifelse(Subprefeitura == "Aricanduva/Carrão/Formosa", "Aricanduva/Formosa/Carrão", Subprefeitura))
 op <- op %>% 
-  filter(Secretaria != "SMT") %>% 
-  mutate(DOTACAO = NA) %>%
-  select("...1", DOTACAO,  Secretaria, Subprefeitura, valor_liquidado_total)
+  filter(Secretaria != "SMT", Subprefeitura != "Várias") %>% 
+  mutate(acao_orcamentaria = str_replace(`Cod projeto`,"^(.{1})(.*)$",  "\\1.\\2"),
+         id= `...1`) %>%
+  select(id, acao_orcamentaria,  Secretaria, Subprefeitura, valor_liquidado_2023)
 
 op<- op %>% 
    mutate("sp_nome" = case_when(
@@ -1282,10 +1291,10 @@ Então, descobrimos o valor total empenhado e agregamos as observações por Sub
 
 ```{r Obras Prioritárias por Subprefeitura, echo=FALSE}
 
-sum(op$valor_liquidado_total)
+sum(op$valor_liquidado_2023)
 obras_prioritarias <- op %>%
   group_by(Subprefeitura) %>% 
-  summarise(total_op = sum(valor_liquidado_total))
+  summarise(total_op = sum(valor_liquidado_2023))
 
 obras_prioritarias<- obras_prioritarias %>% 
    mutate("sp_nome" = case_when(
@@ -1343,7 +1352,7 @@ Por fim, com objetivo meramente descritivo, vamos visualizar os dados das Obras 
 ```{r gráficos Obras Prioritárias, echo=FALSE}
 op %>% 
   group_by(Secretaria) %>% 
-  summarise(Liquidado_OP = sum(valor_liquidado_total)) %>% 
+  summarise(Liquidado_OP = sum(valor_liquidado_2023)) %>% 
   ggplot() +
   geom_col(aes(x = Liquidado_OP,
                y = Secretaria),
@@ -1354,7 +1363,7 @@ op %>%
 #gráfico por Sub
 op %>% 
   group_by(sp_nome) %>% 
-  summarise(Liquidado_OP = sum(valor_liquidado_total)) %>% 
+  summarise(Liquidado_OP = sum(valor_liquidado_2023)) %>% 
   ggplot() +
   geom_col(aes(x = Liquidado_OP,
                y = sp_nome),
@@ -1363,7 +1372,7 @@ op %>%
   theme_minimal()
 ```
 
-
+### Orçamento Cidadão
 
 Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Fazenda (SF) e tratada por SEPEP para desvincular os projetos que também estão inseridos no escopo do Programa de Metas.
 
@@ -1373,7 +1382,8 @@ Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Faze
 df_oc1 <- readxl::read_excel("Planilha_OC_23_v2.xlsx")
 df_oc <- df_oc1 %>% 
   filter(IDRGP == "Sim") %>% 
-  select(`Nº Proposta`, DOTACAO, Secretaria, Subprefeitura, Liquidação)
+  mutate(acao_orcamentaria = DOTACAO) %>% 
+  select(`Nº Proposta`, acao_orcamentaria, Secretaria, Subprefeitura, Liquidação)
 df_oc<- df_oc %>% 
   rename("META"="Nº Proposta",
          sp_nome = Subprefeitura)
@@ -1415,7 +1425,7 @@ df_oc <- df_oc %>%
     TRUE ~ "Subprefeitura de Vila Prudente")) 
 
 df_oc <- df_oc %>% 
-  mutate(acao_orc = stringr::str_sub(DOTACAO, start = 19, end = 23))
+  mutate(acao_orc = stringr::str_sub(acao_orcamentaria, start = 19, end = 23))
 
 
 df_sub_oc <- df_oc %>% 
@@ -1503,9 +1513,10 @@ idrgp<- full_join(idrgp, gp_idrgp_pdm, by = "sp_nome")
 idrgp<- full_join(subprefeitura, idrgp, by = c("sp_nome", "ref_idrgp"))
 
 idrgp<- idrgp %>% 
-  mutate(total_oc = ifelse( is.na(total_oc), 0, total_oc))
+  mutate(total_oc = ifelse( is.na(total_oc), 0, total_oc),
+         total_op = ifelse( is.na(total_op), 0, total_op))
 idrgp<- idrgp %>% 
-  mutate(total_idrgp_23 = total_oc + total_op,
+  mutate(total_idrgp_23 = total_oc + total_op + valor_liquidado,
          p_liq_23 = total_idrgp_23/sum(total_idrgp_23), 
          diferenca23 = p_liq_23 - ref_idrgp)
 idrgp %>% select(NOME, total_idrgp_23, p_liq_23, diferenca23)
@@ -1528,6 +1539,10 @@ shapiro.test(idrgp$ref_idrgp)
 # Teste Kolmogorov-Smirnov. Também tesa a normalidade dos dados.
 ks.test(idrgp$ref_idrgp,"pnorm",mean(idrgp$ref_idrgp),sd(idrgp$ref_idrgp))
 # O tsste também resultou em (não rejeição) curva normal para os dados. 
+
+#Os mesmos testes para o percentual liquidado de 2023
+shapiro.test(idrgp$p_liq_23)
+ks.test(idrgp$p_liq_23,"pnorm",mean(idrgp$p_liq_23),sd(idrgp$p_liq_23))
 
 ```
 
@@ -1567,7 +1582,7 @@ case_when(idrgp$Status1 != idrgp$Status2 ~ idrgp$NOME)
 
 ```
 
-O resulado do primeiro intervalo é relativamente próximo ao t.test (95%), a única diferença foi para a Subprefeitura de Campo Limpo [Confirmar após ter os dados do PdM]
+O resulado do primeiro intervalo de confiança resultou em quatro distinções quando calculado a partir do índice de referência (com 3 sigmas) e quando calculado pelo t.test (95%). As  Subprefeituras de Guaianases, Pirituba-Jaraguá, Vila Maria-Vila Guilherme e Santana-Tucuruvi passaram de aquém do ´indice para dentro do índice.
 
 Podemos visualizar a distribuição da distância entre o valor de referênncia e os resultados de 2023 nos gráficos abaixo, referentes a cada intervalo de confiança adotado.
 
@@ -1578,6 +1593,27 @@ idrgp %>%
   geom_col(aes(x = p_liq_23,
                y = forcats::fct_reorder(sp_nome, ref_idrgp),
                fill = Status2),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = sp_nome,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "IDRGP 2023",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
+
+# gráfico percentual liquidado x referência 2
+idrgp %>% 
+  ggplot() +
+  geom_col(aes(x = p_liq_23,
+               y = forcats::fct_reorder(sp_nome, ref_idrgp),
+               fill = Status1),
            show.legend = TRUE) +
   scale_fill_manual(values = c("yellow", "red", "blue")) +
   scale_x_continuous(name = NULL,
@@ -1665,6 +1701,20 @@ idrgp %>%
        fill = "Aproximação do IDRGP",
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
+
+# mapa 3.1 - análise IDRGP
+idrgp %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status1)) +
+  scale_fill_manual(values = c("yellow","red", "blue")) +
+  geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Variação significativa do gasto de 2023 da referência do IDRGP",
+       subtitle = "Intervalo de confiança de 3 sigmas sobre o valor de referência",
+       fill = "Aproximação do IDRGP",
+       caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+
 ```
 
 ### Comparando com os dados de 2022
