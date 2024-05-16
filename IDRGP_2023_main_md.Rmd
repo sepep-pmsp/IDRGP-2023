@@ -224,7 +224,8 @@ O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponi
 ```{r echo=FALSE, paged.print=TRUE}
 
 # obter base de dados do DA
-base_da <- readr::read_csv2("basedadosDA_1223.csv",
+bd_da <- unzip("basedadosDA_1223.zip", exdir = ".")
+base_da <- readr::read_csv2(bd_da,
                           locale = locale(encoding = "latin1")) %>%
   janitor::clean_names() # extração em 15/05/2024, valores D-1 (portanto, 14/05/2024)
 
@@ -1244,13 +1245,18 @@ op<- op %>%
 op <- op %>%
   filter(macrod1==F & macrod2== F & macrod3== F & macrod4== F)
 
+#removendo obras viárias (mobilidade)
+op<- op %>% 
+  mutate(obraviaria = str_detect(`Obra/Intervenção`, "Viária", F)) %>% 
+  filter(obraviaria==F)
+
 op <- op %>% 
   mutate(Subprefeitura = ifelse(Subprefeitura == "Aricanduva/Carrão/Formosa", "Aricanduva/Formosa/Carrão", Subprefeitura))
 op <- op %>% 
   filter(Secretaria != "SMT", Subprefeitura != "Várias") %>% 
   mutate(acao_orcamentaria = str_replace(`Cod projeto`,"^(.{1})(.*)$",  "\\1.\\2"),
          id= `...1`) %>%
-  select(id, acao_orcamentaria,  Secretaria, Subprefeitura, valor_liquidado_2023)
+  select(id, `Obra/Intervenção`, acao_orcamentaria,  Secretaria, Subprefeitura, valor_liquidado_2023)
 
 op<- op %>% 
    mutate("sp_nome" = case_when(
@@ -1349,7 +1355,7 @@ idrgp_op %>%
 
 ```
 
-Por fim, com objetivo meramente descritivo, vamos visualizar os dados das Obras Prioritárias em dois gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura (ainda não obtemos os dados de liquidação por Ação Orçamentária).
+Por fim, com objetivo meramente descritivo, vamos visualizar os dados das Obras Prioritárias em três gráicos, especificando a liquidação por Secretaria, a liquidação por Subprefeitura e liquidação por Ação Orçamentária.
 
 ```{r gráficos Obras Prioritárias, echo=FALSE}
 op %>% 
@@ -1372,6 +1378,17 @@ op %>%
            show.legend = TRUE) +
   labs(title = "Obras Prioritárias por Subprefeitura") +
   theme_minimal()
+
+op %>% 
+  group_by(acao_orcamentaria) %>% 
+  summarise(Liquidado_OP = sum(valor_liquidado_2023)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado_OP,
+               y = acao_orcamentaria),
+           show.legend = TRUE) +
+  labs(title = "Orçamento cidadão por Ação Orçamentária") +
+  theme_minimal()
+
 ```
 
 ### Orçamento Cidadão
@@ -1383,9 +1400,8 @@ Vamos incluir a base do Orçamento cidadão, encaminhada pela Secretaria da Faze
 
 df_oc1 <- readxl::read_excel("Planilha_OC_23_v2.xlsx")
 df_oc <- df_oc1 %>% 
-  filter(IDRGP == "Sim") %>% 
-  mutate(acao_orcamentaria = DOTACAO) %>% 
-  select(`Nº Proposta`, acao_orcamentaria, Secretaria, Subprefeitura, Liquidação)
+  filter(IDRGP == "Sim") %>%  
+  select(`Nº Proposta`, DOTACAO, Secretaria, Subprefeitura, Liquidação)
 df_oc<- df_oc %>% 
   rename("META"="Nº Proposta",
          sp_nome = Subprefeitura)
@@ -1427,7 +1443,7 @@ df_oc <- df_oc %>%
     TRUE ~ "Subprefeitura de Vila Prudente")) 
 
 df_oc <- df_oc %>% 
-  mutate(acao_orc = stringr::str_sub(acao_orcamentaria, start = 19, end = 23))
+  mutate(acao_orc = stringr::str_sub(DOTACAO, start = 19, end = 23))
 
 
 df_sub_oc <- df_oc %>% 
@@ -1698,9 +1714,9 @@ idrgp %>%
   scale_fill_manual(values = c("yellow","red", "blue")) +
   geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
-  labs(title = "Variação significativa do gasto de 2023 da referência do IDRGP",
+  labs(title = "IDRGP 2023",
        subtitle = "t.test pareado com intervalo de confiança de 95%",
-       fill = "Aproximação do IDRGP",
+       fill = "Aproximação da referência do IDRGP",
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
@@ -1749,9 +1765,9 @@ map_22 %>%
   scale_fill_manual(values = c("yellow","red", "blue")) +
   geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
   theme_void() +
-  labs(title = "Variação significativa do gasto de 2022 da referência do IDRGP",
+  labs(title = "IDRGP 2022",
        subtitle = "t.test com intervalo de confiança de 95%",
-       fill = "Aproximação do IDRGP",
+       fill = "Aproximação da referência do IDRGP",
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 ```
@@ -1787,9 +1803,9 @@ mapa_22e23 %>%
   scale_fill_manual(values = c("yellow","red", "blue")) +
   geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
   theme_void() +
-  labs(title = "Variação significativa do gasto no biênio 2022 e 2023 da referência do IDRGP",
+  labs(title = "IDRGP no biênio 2022 e 2023",
        subtitle = "t.test com intervalo de confiança de 95%",
-       fill = "Aproximação do IDRGP",
+       fill = "Aproximação da referência do IDRGP",
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
@@ -1797,7 +1813,7 @@ mapa_22e23 %>%
 
 #### Análises
 
-```{r}
+```{r echo=FALSE}
 
 ##### Comparação 2022 e 2023
 
@@ -1841,7 +1857,7 @@ rm(list = c("a", "b"))
 
 #### Fichas das subprefeituras
 
-```{r}
+```{r echo=FALSE}
 
 ##### Glossário de ações orçamentárias ####
 
@@ -1880,9 +1896,9 @@ b <- df_oc %>%
   filter(liq_oc > 0)
 
 c <- op %>% 
-  select(sp_nome, valor_liquidado_total, acao_orcamentaria) %>% 
+  select(sp_nome, valor_liquidado_2023, acao_orcamentaria) %>% 
   rename(subprefeitura = sp_nome,
-         liq_op = valor_liquidado_total) %>% 
+         liq_op = valor_liquidado_2023) %>% 
   group_by(subprefeitura, acao_orcamentaria) %>% 
   summarise(liq_op = sum(liq_op),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
