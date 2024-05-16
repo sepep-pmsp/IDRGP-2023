@@ -1894,7 +1894,7 @@ sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
 colnames(df_oc)
 
 b <- df_oc %>% 
-  select(-META, -Secretaria, -acao_orcamentaria) %>% 
+  select(-META, -Secretaria, -DOTACAO) %>% 
   rename(subprefeitura = sp_nome,
          liq_oc = `Liquidação`,
          acao_orcamentaria = acao_orc) %>% 
@@ -1962,7 +1962,7 @@ mapa_22e23.x <- mapa_22e23 %>%
 fichas_subp <- fichas_subp %>% 
   left_join(mapa_22e23.x, by = "subprefeitura")
 
-readr::write_csv2(fichas_subp, "fichas_subp.csv")
+readr::write_excel_csv2(fichas_subp, "fichas_subp.csv")
 
 
 ```
