@@ -224,10 +224,18 @@ O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponi
 ```{r echo=FALSE, paged.print=TRUE}
 
 # obter base de dados do DA
+
+# base_da <- readr::read_csv2("basedadosDA_1223.csv",
+#                          locale = locale(encoding = "latin1")) %>%
+#  janitor::clean_names() # extração em 15/05/2024, valores D-1 (portanto, 14/05/2024)
+
+
+# base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
+
 bd_da <- unzip("basedadosDA_1223.zip", exdir = ".")
 base_da <- readr::read_csv2(bd_da,
                           locale = locale(encoding = "latin1")) %>%
-  janitor::clean_names() # extração em 15/05/2024, valores D-1 (portanto, 14/05/2024)
+  janitor::clean_names()
 
 ## também poderia ser baixado em "https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv"
 ## 
@@ -1886,7 +1894,7 @@ sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
 colnames(df_oc)
 
 b <- df_oc %>% 
-  select(-META, -Secretaria, - DOTACAO) %>% 
+  select(-META, -Secretaria, -acao_orcamentaria) %>% 
   rename(subprefeitura = sp_nome,
          liq_oc = `Liquidação`,
          acao_orcamentaria = acao_orc) %>% 
@@ -1904,6 +1912,14 @@ c <- op %>%
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   filter(liq_op > 0)
 
+d <-  base_da %>% 
+  select(subprefeitura, codigo_proj_ativ, valor_detalhamento_acao) %>% 
+  rename(acao_orcamentaria = codigo_proj_ativ) %>% 
+  group_by(subprefeitura, acao_orcamentaria) %>% 
+  summarise(liq_da = sum(valor_detalhamento_acao),
+            acao_orcamentaria = first(acao_orcamentaria)) %>% 
+  mutate(acao_orcamentaria = str_replace(acao_orcamentaria, "^(.{1})(.*)$", "\\1.\\2"))
+
 fichas_subp <- a %>% 
   full_join(b, by = intersect(names(a), names(b))) %>% 
   replace_na(list(liq_pdm = 0, liq_oc = 0)) %>% 
@@ -1914,12 +1930,39 @@ fichas_subp <- fichas_subp %>%
   replace_na(list(liq_pdm = 0, liq_oc = 0, liq_op = 0))
 
 fichas_subp <- fichas_subp %>% 
+  left_join(d, by = intersect(names(fichas_subp), names(d))) %>% 
+  replace_na((list(liq_pdm = 0, liq_oc = 0, liq_op = 0, liq_da = 0)))
+
+fichas_subp <- fichas_subp %>% 
   left_join(txt_acao_orc, by = "acao_orcamentaria")
 
 fichas_subp <- fichas_subp %>% 
-  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_pdm, liq_oc, liq_op) %>% 
-  mutate(liq_23 = liq_pdm + liq_oc + liq_op)
+  mutate(liq_23 = liq_pdm + liq_oc + liq_op) %>% 
+  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_pdm, liq_oc, liq_op, liq_23, liq_da)
 
+sum(fichas_subp$liq_23)
+
+ref_idrgp.x <- ref_idrgp %>% 
+  mutate(posicao_ranking = seq(1:32)) %>% 
+  rename(subprefeitura = sp_nome)
+
+fichas_subp <- fichas_subp %>% 
+  left_join(ref_idrgp.x, by = "subprefeitura")
+
+colnames(mapa_22e23)
+
+mapa_22e23.x <- mapa_22e23 %>% 
+  select(sp_nome, idrgp_2022, total_idrgp_23, liq_22e23, Status) %>% 
+  rename(subprefeitura = sp_nome,
+         liq_idrgp_22 = idrgp_2022,
+         liq_idrgp_23 = total_idrgp_23,
+         liq_idrbp_acum = liq_22e23,
+         status = Status)
+
+fichas_subp <- fichas_subp %>% 
+  left_join(mapa_22e23.x, by = "subprefeitura")
+
+readr::write_csv2(fichas_subp, "fichas_subp.csv")
 
 
 ```
