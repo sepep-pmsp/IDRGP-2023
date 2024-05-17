@@ -1967,3 +1967,93 @@ readr::write_csv2(fichas_subp, "fichas_subp.csv")
 
 ```
 
+
+#### Gráfico ação orçamentária
+
+```{r}
+
+a <- subprefeitura %>% 
+  as_tibble() %>% 
+  select(sp_nome, sigla) %>% 
+  rename(subprefeitura = sp_nome)
+
+b <- fichas_subp %>% 
+  left_join(a, by = "subprefeitura")
+
+b %>%
+  ungroup() %>%
+  group_by(status) %>% 
+  filter(status == "Acima da referência do IDRGP" & liq_23 > 1000000) %>% 
+  arrange(desc(liq_23), subprefeitura) %>% 
+  ggplot() +
+  geom_col(mapping = aes(x = fct_reorder(sigla, liq_23, .desc = TRUE), y = liq_23)) +
+  facet_wrap(vars(descricao_proj_ativ)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")
+
+
+b %>%
+  ungroup() %>%
+  group_by(status) %>%
+  filter(status == "Aquem da referência do IDRGP" & liq_23 > 1000000) %>%
+  arrange(desc(liq_23), subprefeitura) %>%
+  ggplot() +
+  geom_col(mapping = aes(x = fct_reorder(sigla, liq_23, .desc = TRUE), y = liq_23)) +
+  geom_text(aes(x = sigla, y = liq_23, label = sigla), vjust = -0.5, size = 2.5) +
+  facet_wrap(vars(descricao_proj_ativ)) +
+  scale_y_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Valores liquidado 2023 - Subprefeituras aquém da referência do IDRGP",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(axis.text.y = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  theme_minimal()
+
+b %>%
+  ungroup() %>%
+  group_by(status) %>%
+  filter(status == "Dentro da referência" & liq_23 > 1000000) %>%
+  arrange(desc(liq_23), subprefeitura) %>%
+  ggplot() +
+  geom_col(mapping = aes(x = fct_reorder(sigla, liq_23, .desc = TRUE), y = liq_23)) +
+  geom_text(aes(x = sigla, y = liq_23, label = sigla), vjust = -0.5, size = 2.5) +
+  facet_wrap(vars(descricao_proj_ativ)) +
+  scale_y_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Valores liquidado 2023 - Subprefeituras dentro da referência do IDRGP",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(axis.text.y = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  theme_minimal()
+
+
+b %>%
+  ungroup() %>%
+  group_by(status) %>%
+  filter(status == "Acima da referência do IDRGP" & liq_23 > 1000000) %>%
+  arrange(desc(liq_23), subprefeitura) %>%
+  ggplot() +
+  geom_col(mapping = aes(x = fct_reorder(sigla, liq_23, .desc = TRUE), y = liq_23)) +
+  geom_text(aes(x = sigla, y = liq_23, label = sigla), vjust = -0.5, size = 2.5) +
+  facet_wrap(vars(descricao_proj_ativ)) +
+  scale_y_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Valores liquidado 2023 - Subprefeituras acima da referência do IDRGP",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(axis.text.y = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  theme_minimal()
+
+```
+
