@@ -1301,6 +1301,8 @@ op<- op %>%
     Subprefeitura %in% "Vila Mariana" ~ "Subprefeitura Vila Mariana",
     TRUE ~ "Subprefeitura de Vila Prudente"))
 
+
+
 ```
 
 Então, descobrimos o valor total empenhado e agregamos as observações por Subprefeitura para realizar as análises
@@ -1894,7 +1896,7 @@ sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
 colnames(df_oc)
 
 b <- df_oc %>% 
-  select(-META, -Secretaria, -acao_orcamentaria) %>% 
+  select(-META, -Secretaria, -DOTACAO) %>% 
   rename(subprefeitura = sp_nome,
          liq_oc = `Liquidação`,
          acao_orcamentaria = acao_orc) %>% 
@@ -1961,6 +1963,17 @@ mapa_22e23.x <- mapa_22e23 %>%
 
 fichas_subp <- fichas_subp %>% 
   left_join(mapa_22e23.x, by = "subprefeitura")
+
+fichas_subp %>% 
+  filter(acao_orcamentaria == "4.432")
+
+fichas_subp <- fichas_subp %>% 
+  mutate(descricao_proj_ativ = if_else(acao_orcamentaria == "4.432", "Capacitação, Formação e Aperfeiçoamento dos Trabalhadores", descricao_proj_ativ))
+
+sum(fichas_subp$liq_pdm)
+sum(fichas_subp$liq_oc)
+sum(fichas_subp$liq_op)
+
 
 readr::write_csv2(fichas_subp, "fichas_subp.csv")
 
@@ -2054,6 +2067,33 @@ b %>%
     legend.position = "none"
   ) +
   theme_minimal()
+
+
+b %>%
+  ungroup() %>%
+  group_by(status) %>%
+  filter(status == "Acima da referência do IDRGP" & liq_23 > 1000000) %>%
+  arrange(desc(liq_23), subprefeitura) %>%
+  mutate(descricao_proj_ativ_wrapped = str_wrap(descricao_proj_ativ, width = 30)) %>%  # Adiciona quebra de linha
+  ggplot() +
+  geom_col(mapping = aes(x = fct_reorder(sigla, liq_23, .desc = TRUE), y = liq_23)) +
+  geom_text(aes(x = sigla, y = liq_23, label = sigla), vjust = -0.5, size = 2.5) +
+  facet_wrap(vars(descricao_proj_ativ_wrapped)) +
+  scale_y_continuous(labels = scales::comma_format(big.mark = ".", decimal.mark = ",")) +
+  labs(
+    title = "Valores liquidado 2023 - Subprefeituras acima da referência do IDRGP",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(axis.text.y = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "none"
+  ) +
+  theme_minimal()
+
+sum(base_da1$valor_detalhamento_acao)
+
+sum(idrgp$valor_liquidado)
 
 ```
 
