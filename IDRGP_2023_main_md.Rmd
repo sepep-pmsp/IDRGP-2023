@@ -1922,6 +1922,15 @@ d <-  base_da %>%
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   mutate(acao_orcamentaria = str_replace(acao_orcamentaria, "^(.{1})(.*)$", "\\1.\\2"))
 
+
+e <- d %>% 
+  ungroup() %>% 
+  group_by(subprefeitura) %>% 
+  select(-acao_orcamentaria) %>% 
+  summarise(liq_da_sub = sum(liq_da)) %>% 
+  filter(!is.na(liq_da_sub))
+
+
 fichas_subp <- a %>% 
   full_join(b, by = intersect(names(a), names(b))) %>% 
   replace_na(list(liq_pdm = 0, liq_oc = 0)) %>% 
@@ -1936,11 +1945,15 @@ fichas_subp <- fichas_subp %>%
   replace_na((list(liq_pdm = 0, liq_oc = 0, liq_op = 0, liq_da = 0)))
 
 fichas_subp <- fichas_subp %>% 
+  left_join(e, by = "subprefeitura") %>% 
+  replace_na((list(liq_pdm = 0, liq_oc = 0, liq_op = 0, liq_da = 0, liq_da_sub = 0)))
+
+fichas_subp <- fichas_subp %>% 
   left_join(txt_acao_orc, by = "acao_orcamentaria")
 
 fichas_subp <- fichas_subp %>% 
   mutate(liq_23 = liq_pdm + liq_oc + liq_op) %>% 
-  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_pdm, liq_oc, liq_op, liq_23, liq_da)
+  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_da_sub, liq_23, liq_pdm, liq_oc, liq_op, liq_da)
 
 sum(fichas_subp$liq_23)
 
@@ -1970,12 +1983,18 @@ fichas_subp %>%
 fichas_subp <- fichas_subp %>% 
   mutate(descricao_proj_ativ = if_else(acao_orcamentaria == "4.432", "Capacitação, Formação e Aperfeiçoamento dos Trabalhadores", descricao_proj_ativ))
 
+colnames(fichas_subp)
+
+fichas_subp <- fichas_subp %>% 
+  select(subprefeitura, liq_da_sub, ref_idrgp, posicao_ranking, liq_idrgp_22, liq_idrgp_23, liq_idrbp_acum, status, acao_orcamentaria, descricao_proj_ativ, liq_23, liq_da, liq_pdm, liq_oc, liq_op) %>% 
+  arrange(subprefeitura, desc(liq_23))
+
+readr::write_excel_csv2(fichas_subp, "fichas_subp.csv")
+
 sum(fichas_subp$liq_pdm)
 sum(fichas_subp$liq_oc)
 sum(fichas_subp$liq_op)
 
-
-readr::write_csv2(fichas_subp, "fichas_subp.csv")
 
 
 ```
@@ -2093,7 +2112,6 @@ b %>%
 
 sum(base_da1$valor_detalhamento_acao)
 
-sum(idrgp$valor_liquidado)
 
 ```
 
