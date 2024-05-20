@@ -1883,34 +1883,40 @@ txt_acao_orc <- base_da %>%
 ##### Fichas das subprefeituras ####
 
 a <- base_da_pdm %>% 
-  group_by(subprefeitura, acao_orcamentaria) %>% 
+  group_by(subprefeitura, acao_orcamentaria, orgao) %>% 
   summarise(liq_pdm = sum(valor_liquidado),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   filter(liq_pdm > 0)
 
 sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
 
+a<- a %>% 
+  mutate(orgao = ifelse(orgao =="SMIT; SETRAM", "SMIT", orgao))
 
 colnames(df_oc)
 
 b <- df_oc %>% 
-  select(-META, -Secretaria, -acao_orcamentaria) %>% 
+  select(-META, -DOTACAO) %>% 
   rename(subprefeitura = sp_nome,
          liq_oc = `Liquidação`,
          acao_orcamentaria = acao_orc) %>% 
-  group_by(subprefeitura, acao_orcamentaria) %>% 
+  group_by(subprefeitura, acao_orcamentaria, Secretaria) %>% 
   summarise(liq_oc = sum(liq_oc),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   filter(liq_oc > 0)
+b<- b %>% 
+  mutate(orgao = ifelse(Secretaria =="SVMA/SIURB", "SVMA", Secretaria)) %>% 
+  select(subprefeitura, acao_orcamentaria, orgao, liq_oc)
 
 c <- op %>% 
-  select(sp_nome, valor_liquidado_2023, acao_orcamentaria) %>% 
+  select(sp_nome, valor_liquidado_2023, acao_orcamentaria, Secretaria) %>% 
   rename(subprefeitura = sp_nome,
          liq_op = valor_liquidado_2023) %>% 
-  group_by(subprefeitura, acao_orcamentaria) %>% 
+  group_by(subprefeitura, acao_orcamentaria, Secretaria) %>% 
   summarise(liq_op = sum(liq_op),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
-  filter(liq_op > 0)
+  filter(liq_op > 0) %>% 
+  rename(orgao = Secretaria)
 
 d <-  base_da %>% 
   select(subprefeitura, codigo_proj_ativ, valor_detalhamento_acao) %>% 
@@ -1950,7 +1956,7 @@ fichas_subp <- fichas_subp %>%
 
 fichas_subp <- fichas_subp %>% 
   mutate(liq_23 = liq_pdm + liq_oc + liq_op) %>% 
-  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_da_sub, liq_23, liq_pdm, liq_oc, liq_op, liq_da)
+  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, orgao, liq_da_sub, liq_23, liq_pdm, liq_oc, liq_op, liq_da)
 
 sum(fichas_subp$liq_23)
 
@@ -1977,11 +1983,94 @@ fichas_subp <- fichas_subp %>%
 colnames(fichas_subp)
 
 fichas_subp <- fichas_subp %>% 
-  select(subprefeitura, liq_da_sub, ref_idrgp, posicao_ranking, liq_idrgp_22, liq_idrgp_23, liq_idrbp_acum, status, acao_orcamentaria, descricao_proj_ativ, liq_23, liq_da, liq_pdm, liq_oc, liq_op) %>% 
+  select(subprefeitura, liq_da_sub, ref_idrgp, posicao_ranking, liq_idrgp_22, liq_idrgp_23, liq_idrbp_acum, status, acao_orcamentaria, descricao_proj_ativ,orgao, liq_23, liq_da, liq_pdm, liq_oc, liq_op) %>% 
   arrange(subprefeitura, desc(liq_23))
 
 readr::write_excel_csv2(fichas_subp, "fichas_subp.csv")
 
 
+```
+
+### Outros gráficos
+
+* Gráfico de Órgão por Subprefeitura
+
+```{r}
+#visualizações básicas
+fichas_subp %>% 
+  group_by(orgao) %>% 
+  summarise(Liquidado = sum(liq_23)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado,
+               y = orgao),
+           show.legend = TRUE) +
+  labs(title = "Liquidado IDRGP por Órgãos") +
+  theme_minimal()
+
+fichas_subp %>% 
+  group_by(descricao_proj_ativ) %>% 
+  summarise(Liquidado = sum(liq_23)) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado,
+               y = descricao_proj_ativ),
+           show.legend = TRUE) +
+  labs(title = "Liquidado IDRGP por Ação Orçamentária") +
+  theme_minimal()
+
+#Graficos por órgão
+ggplot(fichas_subp, aes(y = subprefeitura, x = liq_23)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = fichas_subp , aes(y = subprefeitura, x = liq_23), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(orgao), nrow = 6, ncol = 6)+
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom")
+  
+
+#Graficos por sub
+ggplot(fichas_subp, aes(x = orgao, y = liq_23)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = fichas_subp , aes(x = orgao, y = liq_23), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(subprefeitura), nrow = 6, ncol = 6)+
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom")
+  
+for (i in unique(fichas_subp$orgao)) {nome_grafico = paste(i,”.png”, sep = “”)png(filename = nome_grafico, width = 15, height = 15, units = “cm”, pointsize = 12, res = 150)
+print(ggplot(fichas_subp, aes(y = subprefeitura, x = liq_23)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = fichas_subp , aes(y = subprefeitura, x = liq_23), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(orgao), nrow = 6, ncol = 6)+
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom"))
+dev.off()
+}
+
+fichas_subp %>% group_by(orgao) %>% 
+    ggplot() +
+    geom_bar(aes(x = subprefeitura, y = liq_23)) +
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() 
+
+ggplot(fichas_subp, aes(x = subprefeitura, y = liq_23, fill = orgao)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = fichas_subp , aes(x = subprefeitura, y = liq_23, group = orgao), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(orgao), nrow = 3)+
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom")
 ```
 
