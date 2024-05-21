@@ -1622,7 +1622,7 @@ idrgp %>%
                y = forcats::fct_reorder(sp_nome, ref_idrgp),
                fill = Status2),
            show.legend = TRUE) +
-  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_fill_manual(values = c("#1A1442", "#d97a0f", "#0ea1cf")) +
   scale_x_continuous(name = NULL,
                      labels = scales::comma_format(big.mark = ".",
                                                    decimal.mark = ",")) +
@@ -1630,6 +1630,7 @@ idrgp %>%
                            y = sp_nome,
                            colour = "Referência pelo IDRGP"),
              show.legend = TRUE) +
+  scale_colour_manual(values = c("Referência pelo IDRGP" = "#F7C234")) +
   labs(title = "IDRGP 2023",
        y = "") +
   theme_minimal()+
@@ -1643,7 +1644,7 @@ idrgp %>%
                y = forcats::fct_reorder(sp_nome, ref_idrgp),
                fill = Status1),
            show.legend = TRUE) +
-  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_fill_manual(values = c("#1A1442", "#d97a0f", "#0ea1cf")) +
   scale_x_continuous(name = NULL,
                      labels = scales::comma_format(big.mark = ".",
                                                    decimal.mark = ",")) +
@@ -1651,6 +1652,7 @@ idrgp %>%
                            y = sp_nome,
                            colour = "Referência pelo IDRGP"),
              show.legend = TRUE) +
+  scale_colour_manual(values = c("Referência pelo IDRGP" = "#F7C234")) +
   labs(title = "IDRGP 2023",
        y = "") +
   theme_minimal()+
@@ -1664,7 +1666,7 @@ idrgp %>%
                y = NOME,
                fill = Status1),
            show.legend = T) +
-  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_fill_manual(values = c("#1A1442", "#d97a0f", "#0ea1cf")) +
   labs(title = "Distâcias do IDRGP 2023 ao referencial",
        y = "") +
   theme_minimal()
@@ -1676,7 +1678,7 @@ idrgp %>%
                y = NOME,
                fill = Status2),
            show.legend = T) +
-  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_fill_manual(values = c("#1A1442", "#d97a0f", "#0ea1cf")) +
   labs(title = "Distâcias do IDRGP 2023 ao referencial",
        y = "") +
   theme_minimal()
@@ -1697,7 +1699,7 @@ Para melhor compreender a distribuição do IDRGP no território da cidade, apre
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = total_idrgp_23, geometry = geometry)) +
-  scale_fill_gradient(low="white",high="blue") +
+  scale_fill_gradient(low="white",high="#0ea1cf") +
   geom_sf_text(aes(label = sigla), color = "black", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "Valor liquidado utilizado no cálculo do IDRGP 2023*",
@@ -1708,7 +1710,7 @@ idrgp %>%
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = diferenca23, geometry = geometry)) +
-  scale_fill_gradient(low="red",high="yellow") +
+  scale_fill_gradient(low="#d97a0f",high="#1A1442") +
   geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "Índice da Distribuição Regional do Gasto Público, 2023*",
@@ -1721,7 +1723,7 @@ idrgp %>%
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = Status2)) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "IDRGP 2023",
@@ -1734,7 +1736,7 @@ idrgp %>%
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = Status1)) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "Variação significativa do gasto de 2023 da referência do IDRGP",
@@ -1772,7 +1774,7 @@ map_22<- inner_join(idrgp22, subprefeitura, by = "NOME")
 map_22 %>% 
   ggplot()+
   geom_sf(aes(fill = Status, geometry = geometry )) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "IDRGP 2022",
@@ -1810,7 +1812,7 @@ mapa_22e23<- mapa_22e23 %>%
 mapa_22e23 %>% 
   ggplot()+
   geom_sf(aes(fill = Status, geometry = geometry )) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "IDRGP no biênio 2022 e 2023",
@@ -2112,6 +2114,13 @@ b %>%
 
 sum(base_da1$valor_detalhamento_acao)
 
+b %>% 
+  group_by(descricao_proj_ativ) %>% 
+  summarise(liq_23 = sum(liq_23)) %>% 
+  arrange((desc(liq_23)))
+
+base_da %>% 
+  filter(codigo_proj_ativ == 2386)
 
 ```
 
