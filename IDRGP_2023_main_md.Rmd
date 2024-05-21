@@ -1995,28 +1995,33 @@ readr::write_excel_csv2(fichas_subp, "fichas_subp.csv")
 
 * Gráfico de Órgão por Subprefeitura
 
-```{r}
+```{r graficos para a apresentação, echo=FALSE}
 #visualizações básicas
 fichas_subp %>% 
   group_by(orgao) %>% 
   summarise(Liquidado = sum(liq_23)) %>% 
+  filter(Liquidado >= 15000000) %>% 
   ggplot() +
   geom_col(aes(x = Liquidado,
-               y = orgao),
+               y = reorder(orgao, Liquidado)),
            show.legend = TRUE) +
-  labs(title = "Liquidado IDRGP por Órgãos") +
+  labs(title = "Os 10 órgãos com maior participação no IDRGP",
+       x = NULL, y = NULL) +
   theme_minimal()
 
 fichas_subp %>% 
-  group_by(descricao_proj_ativ) %>% 
-  summarise(Liquidado = sum(liq_23)) %>% 
-  ggplot() +
-  geom_col(aes(x = Liquidado,
-               y = descricao_proj_ativ),
-           show.legend = TRUE) +
-  labs(title = "Liquidado IDRGP por Ação Orçamentária") +
-  theme_minimal()
-
+   group_by(descricao_proj_ativ) %>% 
+   summarise(Liquidado = sum(liq_23)) %>%
+   filter(Liquidado >= 30000000) %>% 
+   ggplot() +
+   geom_col(aes(x = Liquidado,
+                y = reorder(descricao_proj_ativ, Liquidado)),
+            show.legend = TRUE) +
+   labs(title = "Os 10 maiores gastos por Ação Orçamentária", 
+        subtitle = "Liquidado IDRGP (2023)",
+         x = NULL, y = NULL)+
+   theme_minimal()
+ 
 #Graficos por órgão
 ggplot(fichas_subp, aes(y = subprefeitura, x = liq_23)) +
   geom_bar(stat = "identity", position = "dodge") +
@@ -2041,36 +2046,10 @@ ggplot(fichas_subp, aes(x = orgao, y = liq_23)) +
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         legend.position = "bottom")
-  
-for (i in unique(fichas_subp$orgao)) {nome_grafico = paste(i,”.png”, sep = “”)png(filename = nome_grafico, width = 15, height = 15, units = “cm”, pointsize = 12, res = 150)
-print(ggplot(fichas_subp, aes(y = subprefeitura, x = liq_23)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  geom_line(data = fichas_subp , aes(y = subprefeitura, x = liq_23), color = "orange", linetype = "dashed", linewidth = 0.25) +
-  facet_wrap(vars(orgao), nrow = 6, ncol = 6)+
-  labs(x = NULL, y = NULL, fill = NULL) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        legend.position = "bottom"))
-dev.off()
-}
 
-fichas_subp %>% group_by(orgao) %>% 
-    ggplot() +
-    geom_bar(aes(x = subprefeitura, y = liq_23)) +
-  labs(x = NULL, y = NULL, fill = NULL) +
-  theme_minimal() 
 
-ggplot(fichas_subp, aes(x = subprefeitura, y = liq_23, fill = orgao)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  geom_line(data = fichas_subp , aes(x = subprefeitura, y = liq_23, group = orgao), color = "orange", linetype = "dashed", linewidth = 0.25) +
-  facet_wrap(vars(orgao), nrow = 3)+
-  labs(x = NULL, y = NULL, fill = NULL) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        legend.position = "bottom")
+# orçamento sub
+da_sub<- base_da1 %>% mutate(e_sub = str_extract(sigla_orgao,"SUB-")) %>% group_by(e_sub) %>%  summarise(sum(valor_detalhamento_acao))
+
 ```
 
