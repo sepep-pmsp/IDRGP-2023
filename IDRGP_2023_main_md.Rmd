@@ -1719,7 +1719,7 @@ idrgp %>%
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = Status2)) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "IDRGP 2023",
@@ -1770,7 +1770,7 @@ map_22<- inner_join(idrgp22, subprefeitura, by = "NOME")
 map_22 %>% 
   ggplot()+
   geom_sf(aes(fill = Status, geometry = geometry )) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "IDRGP 2022",
@@ -1808,7 +1808,7 @@ mapa_22e23<- mapa_22e23 %>%
 mapa_22e23 %>% 
   ggplot()+
   geom_sf(aes(fill = Status, geometry = geometry )) +
-  scale_fill_manual(values = c("yellow","red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
   theme_void() +
   labs(title = "IDRGP no biênio 2022 e 2023",
@@ -2003,7 +2003,8 @@ fichas_subp %>%
   filter(Liquidado >= 15000000) %>% 
   ggplot() +
   geom_col(aes(x = Liquidado,
-               y = reorder(orgao, Liquidado)),
+               y = reorder(orgao, Liquidado)), 
+           fill = "#d97a0f",
            show.legend = TRUE) +
   labs(title = "Os 10 órgãos com maior participação no IDRGP",
        x = NULL, y = NULL) +
@@ -2016,6 +2017,7 @@ fichas_subp %>%
    ggplot() +
    geom_col(aes(x = Liquidado,
                 y = reorder(descricao_proj_ativ, Liquidado)),
+            fill = "#d97a0f",
             show.legend = TRUE) +
    labs(title = "Os 10 maiores gastos por Ação Orçamentária", 
         subtitle = "Liquidado IDRGP (2023)",
