@@ -1617,15 +1617,15 @@ Podemos visualizar a distribuição da distância entre o valor de referênncia 
 idrgp %>% 
   ggplot() +
   geom_col(aes(x = p_liq_23,
-               y = forcats::fct_reorder(sp_nome, ref_idrgp),
+               y = forcats::fct_reorder(NOME, ref_idrgp),
                fill = Status2),
            show.legend = TRUE) +
-  scale_fill_manual(values = c("yellow", "red", "blue")) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
   scale_x_continuous(name = NULL,
                      labels = scales::comma_format(big.mark = ".",
                                                    decimal.mark = ",")) +
   geom_point(mapping = aes(x = ref_idrgp,
-                           y = sp_nome,
+                           y = NOME,
                            colour = "Referência pelo IDRGP"),
              show.legend = TRUE) +
   labs(title = "IDRGP 2023",
@@ -1695,10 +1695,10 @@ Para melhor compreender a distribuição do IDRGP no território da cidade, apre
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = total_idrgp_23, geometry = geometry)) +
-  scale_fill_gradient(low="white",high="blue") +
-  geom_sf_text(aes(label = sigla), color = "black", size = 2, fontface = "bold") +
+  scale_fill_gradient(low="#0ea1cf",high="#1A1442") +
+  geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
-  labs(title = "Valor liquidado utilizado no cálculo do IDRGP 2023*",
+  labs(title = "Distribuição do valor liquidado calculado no IDRGP 2023",
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
