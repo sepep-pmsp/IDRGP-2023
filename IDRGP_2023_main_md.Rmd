@@ -1619,15 +1619,17 @@ Podemos visualizar a distribuição da distância entre o valor de referênncia 
 idrgp %>% 
   ggplot() +
   geom_col(aes(x = p_liq_23,
-               y = forcats::fct_reorder(sp_nome, ref_idrgp),
+               y = forcats::fct_reorder(NOME, ref_idrgp),
                fill = Status2),
            show.legend = TRUE) +
-  scale_fill_manual(values = c("#1A1442", "#d97a0f", "#0ea1cf")) +
+
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
+
   scale_x_continuous(name = NULL,
                      labels = scales::comma_format(big.mark = ".",
                                                    decimal.mark = ",")) +
   geom_point(mapping = aes(x = ref_idrgp,
-                           y = sp_nome,
+                           y = NOME,
                            colour = "Referência pelo IDRGP"),
              show.legend = TRUE) +
   scale_colour_manual(values = c("Referência pelo IDRGP" = "#F7C234")) +
@@ -1699,10 +1701,10 @@ Para melhor compreender a distribuição do IDRGP no território da cidade, apre
 idrgp %>% 
   ggplot()+
   geom_sf(aes(fill = total_idrgp_23, geometry = geometry)) +
-  scale_fill_gradient(low="white",high="#0ea1cf") +
-  geom_sf_text(aes(label = sigla), color = "black", size = 2, fontface = "bold") +
+  scale_fill_gradient(low="#0ea1cf",high="#1A1442") +
+  geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
-  labs(title = "Valor liquidado utilizado no cálculo do IDRGP 2023*",
+  labs(title = "Distribuição do valor liquidado calculado no IDRGP 2023",
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
@@ -1821,6 +1823,26 @@ mapa_22e23 %>%
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
+# gráfico percentual liquidado x referência
+mapa_22e23 %>% 
+  ggplot() +
+  geom_col(aes(x = p_liq_22e23 ,
+               y = forcats::fct_reorder(NOME, ref_idrgp),
+               fill = Status),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = NOME,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "IDRGP no biênio 2022 2023",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
 ```
 
 #### Análises
@@ -1887,34 +1909,41 @@ txt_acao_orc <- base_da %>%
 ##### Fichas das subprefeituras ####
 
 a <- base_da_pdm %>% 
-  group_by(subprefeitura, acao_orcamentaria) %>% 
+  group_by(subprefeitura, acao_orcamentaria, orgao) %>% 
   summarise(liq_pdm = sum(valor_liquidado),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   filter(liq_pdm > 0)
 
 sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
 
+a<- a %>% 
+  mutate(orgao = ifelse(orgao =="SMIT; SETRAM", "SMIT", orgao))
 
 colnames(df_oc)
 
 b <- df_oc %>% 
-  select(-META, -Secretaria, -DOTACAO) %>% 
+
+  select(-META, -DOTACAO) %>% 
   rename(subprefeitura = sp_nome,
          liq_oc = `Liquidação`,
          acao_orcamentaria = acao_orc) %>% 
-  group_by(subprefeitura, acao_orcamentaria) %>% 
+  group_by(subprefeitura, acao_orcamentaria, Secretaria) %>% 
   summarise(liq_oc = sum(liq_oc),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   filter(liq_oc > 0)
+b<- b %>% 
+  mutate(orgao = ifelse(Secretaria =="SVMA/SIURB", "SVMA", Secretaria)) %>% 
+  select(subprefeitura, acao_orcamentaria, orgao, liq_oc)
 
 c <- op %>% 
-  select(sp_nome, valor_liquidado_2023, acao_orcamentaria) %>% 
+  select(sp_nome, valor_liquidado_2023, acao_orcamentaria, Secretaria) %>% 
   rename(subprefeitura = sp_nome,
          liq_op = valor_liquidado_2023) %>% 
-  group_by(subprefeitura, acao_orcamentaria) %>% 
+  group_by(subprefeitura, acao_orcamentaria, Secretaria) %>% 
   summarise(liq_op = sum(liq_op),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
-  filter(liq_op > 0)
+  filter(liq_op > 0) %>% 
+  rename(orgao = Secretaria)
 
 d <-  base_da %>% 
   select(subprefeitura, codigo_proj_ativ, valor_detalhamento_acao) %>% 
@@ -1955,7 +1984,7 @@ fichas_subp <- fichas_subp %>%
 
 fichas_subp <- fichas_subp %>% 
   mutate(liq_23 = liq_pdm + liq_oc + liq_op) %>% 
-  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, liq_da_sub, liq_23, liq_pdm, liq_oc, liq_op, liq_da)
+  select(subprefeitura, acao_orcamentaria, descricao_proj_ativ, orgao, liq_da_sub, liq_23, liq_pdm, liq_oc, liq_op, liq_da)
 
 sum(fichas_subp$liq_23)
 
@@ -1988,7 +2017,7 @@ fichas_subp <- fichas_subp %>%
 colnames(fichas_subp)
 
 fichas_subp <- fichas_subp %>% 
-  select(subprefeitura, liq_da_sub, ref_idrgp, posicao_ranking, liq_idrgp_22, liq_idrgp_23, liq_idrbp_acum, status, acao_orcamentaria, descricao_proj_ativ, liq_23, liq_da, liq_pdm, liq_oc, liq_op) %>% 
+  select(subprefeitura, liq_da_sub, ref_idrgp, posicao_ranking, liq_idrgp_22, liq_idrgp_23, liq_idrbp_acum, status, acao_orcamentaria, descricao_proj_ativ,orgao, liq_23, liq_da, liq_pdm, liq_oc, liq_op) %>% 
   arrange(subprefeitura, desc(liq_23))
 
 readr::write_excel_csv2(fichas_subp, "fichas_subp.csv")
@@ -2121,6 +2150,70 @@ b %>%
 
 base_da %>% 
   filter(codigo_proj_ativ == 2386)
+
+```
+
+### Outros gráficos
+
+* Gráfico de Órgão por Subprefeitura
+
+```{r graficos para a apresentação, echo=FALSE}
+#visualizações básicas
+fichas_subp %>% 
+  group_by(orgao) %>% 
+  summarise(Liquidado = sum(liq_23)) %>% 
+  filter(Liquidado >= 15000000) %>% 
+  ggplot() +
+  geom_col(aes(x = Liquidado,
+               y = reorder(orgao, Liquidado)), 
+           fill = "#d97a0f",
+           show.legend = TRUE) +
+  labs(title = "Os 10 órgãos com maior participação no IDRGP",
+       x = NULL, y = NULL) +
+  theme_minimal()
+
+fichas_subp %>% 
+   group_by(descricao_proj_ativ) %>% 
+   summarise(Liquidado = sum(liq_23)) %>%
+   filter(Liquidado >= 30000000) %>% 
+   ggplot() +
+   geom_col(aes(x = Liquidado,
+                y = reorder(descricao_proj_ativ, Liquidado)),
+            fill = "#d97a0f",
+            show.legend = TRUE) +
+   labs(title = "Os 10 maiores gastos por Ação Orçamentária", 
+        subtitle = "Liquidado IDRGP (2023)",
+         x = NULL, y = NULL)+
+   theme_minimal()
+ 
+#Graficos por órgão
+ggplot(fichas_subp, aes(y = subprefeitura, x = liq_23)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = fichas_subp , aes(y = subprefeitura, x = liq_23), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(orgao), nrow = 6, ncol = 6)+
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom")
+  
+
+#Graficos por sub
+ggplot(fichas_subp, aes(x = orgao, y = liq_23)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_line(data = fichas_subp , aes(x = orgao, y = liq_23), color = "orange", linetype = "dashed", linewidth = 0.25) +
+  facet_wrap(vars(subprefeitura), nrow = 6, ncol = 6)+
+  labs(x = NULL, y = NULL, fill = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom")
+
+
+# orçamento sub
+da_sub<- base_da1 %>% mutate(e_sub = str_extract(sigla_orgao,"SUB-")) %>% group_by(e_sub) %>%  summarise(sum(valor_detalhamento_acao))
 
 ```
 
