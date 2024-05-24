@@ -1817,6 +1817,26 @@ mapa_22e23 %>%
        caption = "Fonte: PMSP/SOF; SMADS; SME; SMS. Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
+# gráfico percentual liquidado x referência
+mapa_22e23 %>% 
+  ggplot() +
+  geom_col(aes(x = p_liq_22e23 ,
+               y = forcats::fct_reorder(NOME, ref_idrgp),
+               fill = Status),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = NOME,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "IDRGP no biênio 2022 2023",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
 ```
 
 #### Análises
