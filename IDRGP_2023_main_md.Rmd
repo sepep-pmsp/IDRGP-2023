@@ -232,11 +232,14 @@ O bloco, a seguir, demonstra o acesso à base do detalhamento da ação, disponi
 
 # base_da <- readr::read_csv2("https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv",
 
-bd_da <- unzip("basedadosDA_1223.zip", exdir = ".")
-base_da <- readr::read_csv2(bd_da,
-                          locale = locale(encoding = "latin1")) %>%
-  janitor::clean_names()
+#bd_da <- unzip("basedadosDA_1223.zip", exdir = ".")
+#base_da <- readr::read_csv2(bd_da,
+#                          locale = locale(encoding = "latin1")) %>%
+#  janitor::clean_names()
 
+## Nova base encaminhada pela SF
+base_da <- read_xlsx("Base_DA_Limpa_SEPEP.xlsx", sheet = 2) %>%
+  janitor::clean_names()
 ## também poderia ser baixado em "https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv"
 ## 
 
@@ -840,6 +843,8 @@ Agora, inserimos informações sobre as execuções física e orçamentária do 
 ```{r include=FALSE}
 
 ##### Criação da base_da_pdm - join base_da, base_smae, base_inf_orgaos #####
+
+Está dando erro aqui! linha 647
 
 # Criar uma base, a partir de com_sub_dot apenas com dotações do PdM
 base_da_pdm <- comp_sub_dot %>% 
@@ -2214,6 +2219,97 @@ ggplot(fichas_subp, aes(x = orgao, y = liq_23)) +
 
 # orçamento sub
 da_sub<- base_da1 %>% mutate(e_sub = str_extract(sigla_orgao,"SUB-")) %>% group_by(e_sub) %>%  summarise(sum(valor_detalhamento_acao))
+
+```
+
+Varificando o vlalor total
+
+```{r}
+Investiemnto_total<- base_da %>% 
+  filter(tipo_regionalizacao=="Despesa Regionalizável") 
+Investiemnto_total<- Investiemnto_total%>% 
+  mutate(manter = str_sub(codigo_conta_despesa, start = 1, end = 1)) %>% 
+  filter(manter==4)
+
+Investiemnto_total <- Investiemnto_total %>% 
+  mutate(subprefeitura = case_when(
+    subprefeitura %in% "Supra Subprefeitura Centro" ~ "Subprefeitura Sé",
+    TRUE ~ subprefeitura)
+  )
+
+Investiemnto_total <- Investiemnto_total %>% 
+  select(dotacao, subprefeitura, regiao, sigla_orgao, valor_detalhamento_acao)
+
+sum(Investiemnto_total$valor_detalhamento_acao)
+
+invest_tot<- Investiemnto_total %>% 
+  group_by(subprefeitura) %>% 
+  summarise(total_liq= sum(valor_detalhamento_acao))
+invest_tot<- invest_tot %>% 
+  rename(sp_nome=subprefeitura)
+
+invest_tot<- subprefeitura %>% 
+  inner_join(invest_tot, by= "sp_nome")
+
+
+invest_tot<- invest_tot %>% 
+  mutate(p_liq_23 = total_liq/ sum(total_liq),
+        diferenca = p_liq_23 - ref_idrgp) %>% 
+  select(sigla, NOME, sp_nome, geometry, ref_idrgp, total_liq, p_liq_23, diferenca)
+
+teste_t_invest_tot<-t.test(invest_tot$ref_idrgp, invest_tot$p_liq_23, paired = T)
+invest_tot<- invest_tot %>% 
+  mutate("Status" = case_when(
+    invest_tot$diferenca <  teste_t_invest_tot$conf.int[1] ~ "Aquem da referência do IDRGP",
+    invest_tot$diferenca >  teste_t_invest_tot$conf.int[2] ~ "Acima da referência do IDRGP",
+    TRUE ~ "Dentro da referência"))
+
+# Mapa 1 - valor liquidado 2023
+invest_tot %>% 
+  ggplot()+
+  geom_sf(aes(fill = total_liq, geometry = geometry)) +
+  scale_fill_gradient(low="#0ea1cf",high="#1A1442", labels=comma) +
+  geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Distribuição do investimento em 2023",
+       caption = "Elaboração: SGM/SEPEP/CP",
+       x = NULL, y = NULL)+
+  scale_x_continuous(labels = comma) + 
+  scale_y_continuous(labels = comma)
+
+#mapa 2
+invest_tot %>% 
+  ggplot()+
+  geom_sf(aes(fill = Status, geometry = geometry )) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
+  geom_sf_text(aes(label = sigla, geometry = geometry), color = "white", size = 2, fontface = "bold") +
+  theme_void() +
+  labs(title = "Se o IDRGP fosse o investimento total no periodo",
+       subtitle = "t.test com intervalo de confiança de 95%",
+       fill = "Aproximação da referência do IDRGP",
+       caption = "Elaboração: SGM/SEPEP/CP.",
+       x = NULL, y = NULL)
+
+# gráfico percentual liquidado x referência
+invest_tot %>% 
+  ggplot() +
+  geom_col(aes(x = p_liq_23 ,
+               y = forcats::fct_reorder(NOME, ref_idrgp),
+               fill = Status),
+           show.legend = TRUE) +
+  scale_fill_manual(values = c("#1A1442","#d97a0f", "#0ea1cf")) +
+  scale_x_continuous(name = NULL,
+                     labels = scales::comma_format(big.mark = ".",
+                                                   decimal.mark = ",")) +
+  geom_point(mapping = aes(x = ref_idrgp,
+                           y = NOME,
+                           colour = "Referência pelo IDRGP"),
+             show.legend = TRUE) +
+  labs(title = "Se o IDRGP fosse o investimento total no periodo",
+       y = "") +
+  theme_minimal()+
+  theme(legend.title = element_blank(),
+        legend.position = "bottom")
 
 ```
 
