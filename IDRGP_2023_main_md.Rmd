@@ -24,6 +24,7 @@ library(readxl)
 library(sf)
 library(tinytex)
 library(janitor)
+library(scales)
 
 
 base::options(scipen = 99, digits = 2)
@@ -243,11 +244,55 @@ base_da <- read_xlsx("Base_DA_Limpa_SEPEP.xlsx", sheet = 2) %>%
 ## também poderia ser baixado em "https://orcamento.sf.prefeitura.sp.gov.br/orcamento/uploads/2023/basedadosDA_1223.csv"
 ## 
 
-base::names(base_da)
+glimpse(base_da) #o tipo de algumas colunas pode (dbl em vez de chr) pode afetar a estrutura da dotacao orçamentária (48 caracteres)"
+
+(cod_orgao <- unique(base_da$codigo_orgao)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "10"
+
+(cod_unidade <- unique(base_da$codigo_unidade)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "10"
+
+(cod_funcao <- unique(base_da$codigo_funcao)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "10"
+
+(cod_subfuncao <- unique(base_da$codigo_subfuncao)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "100"
+
+(cod_prog <- unique(base_da$codigo_programa)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "1000"
+
+(cod_proj_ativ <- unique(base_da$codigo_proj_ativ)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "1000"
+
+(cod_conta_desp <- unique(base_da$codigo_conta_despesa)) #ok
+
+(cod_fonte <- unique(base_da$codigo_fonte)) #está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "10"
+
+(cod_exerc <- unique(base_da$codigo_exercicio_fonte)) #ok
+
+(cod_dest <- unique(base_da$codigo_destinacao_recurso)) #ok
+
+(cod_vinc <- unique(base_da$codigo_vinculo_pmsp))#está como dbl. Necessário transformar em chr e acrescentar um "0" a esquerda dos registro menores que "1000"
+
+base_da <- base_da %>%
+  mutate(across(c(codigo_orgao,
+                  codigo_unidade,
+                  codigo_funcao,
+                  codigo_subfuncao,
+                  codigo_programa,
+                  codigo_proj_ativ,
+                  codigo_conta_despesa,
+                  codigo_fonte,
+                  codigo_exercicio_fonte,
+                  codigo_destinacao_recurso,
+                  codigo_vinculo_pmsp,
+                  codigo_tipo_credito_orcamentario), as.character))
+
 
 # criar coluna com a codificação da dotação orçamentária
-base_da <- base_da %>% 
-  dplyr::mutate(dotacao = base::paste(codigo_orgao,
+base_da <- base_da %>%
+  dplyr::mutate(codigo_orgao = ifelse(nchar(codigo_orgao) == 1, str_pad(codigo_orgao, 2, pad = "0"), codigo_orgao),
+                codigo_funcao = ifelse(nchar(codigo_funcao) == 1, str_pad(codigo_funcao, 2, pad = "0"), codigo_funcao),
+                codigo_subfuncao = ifelse(nchar(codigo_subfuncao) < 3, str_pad(codigo_subfuncao, 3, pad = "0"), codigo_subfuncao),
+                codigo_programa = ifelse(nchar(codigo_programa) < 4, str_pad(codigo_programa, 4, pad = "0"), codigo_programa),
+                codigo_proj_ativ = ifelse(nchar(codigo_proj_ativ) < 4, str_pad(codigo_proj_ativ, 4, pad = "0"), codigo_proj_ativ),
+                codigo_fonte = ifelse(nchar(codigo_fonte) == 1, str_pad(codigo_fonte, 2, pad = "0"), codigo_fonte),
+                codigo_vinculo_pmsp = ifelse(nchar(codigo_vinculo_pmsp) < 4, str_pad(codigo_vinculo_pmsp, 4, pad = "0"), codigo_vinculo_pmsp),
+                dotacao = base::paste(codigo_orgao,
                                       codigo_unidade,
                                       codigo_funcao,
                                       codigo_subfuncao,
@@ -260,7 +305,16 @@ base_da <- base_da %>%
                                       codigo_vinculo_pmsp,
                                       codigo_tipo_credito_orcamentario,
                                       sep = "."),
-                dotacao = base::sub('^(.{19})', '\\1.', dotacao)) 
+                dotacao = base::sub('^(.{19})', '\\1.', dotacao))
+
+
+#checagens
+base_da$dotacao[1] #dotacao no formato adequado
+
+base_da %>% 
+  select(dotacao, tipo_regionalizacao, valor_detalhamento_acao) %>% 
+  filter(str_length(dotacao) < 48) #nenhuma dotação com menos de 48 caracteres
+
 
 base_da1 <- base_da %>% 
   dplyr::select(dotacao, sigla_orgao, regiao, subprefeitura, distrito, tipo_regionalizacao, valor_detalhamento_acao) %>%   dplyr::group_by(dotacao, subprefeitura) %>% 
@@ -632,7 +686,11 @@ rm(list = c("a", "b", "c", "rep"))
 
 b <- base_inf_orgaos %>% 
   filter(str_detect(dotacao, "^25\\.10\\.13\\.392\\.3001\\.6\\.371\\.3390")& str_length(dotacao) < 48) %>% 
-  select(-dotacao)
+  select(-dotacao) %>% 
+  group_by(subprefeitura) %>% 
+  summarise(meta = first(meta),
+            subprefeitura = first(subprefeitura),
+            valor_da_inf_orgao = sum(valor_da_inf_orgao))
 
 rep <- nrow(a) * nrow(b)
 
@@ -844,7 +902,7 @@ Agora, inserimos informações sobre as execuções física e orçamentária do 
 
 ##### Criação da base_da_pdm - join base_da, base_smae, base_inf_orgaos #####
 
-Está dando erro aqui! linha 847
+## Está dando erro aqui! linha 847
 
 # Criar uma base, a partir de com_sub_dot apenas com dotações do PdM
 base_da_pdm <- comp_sub_dot %>% 
@@ -2266,16 +2324,17 @@ invest_tot<- invest_tot %>%
 
 # Mapa 1 - valor liquidado 2023
 invest_tot %>% 
-  ggplot()+
+  ggplot() +
   geom_sf(aes(fill = total_liq, geometry = geometry)) +
-  scale_fill_gradient(low="#0ea1cf",high="#1A1442", labels=comma) +
+  scale_fill_gradient(low = "#0ea1cf", high = "#1A1442", labels = label_number(big.mark = ".", decimal.mark = ",")) +
   geom_sf_text(aes(label = sigla), color = "white", size = 2, fontface = "bold") +
   theme_void() +
-  labs(title = "Distribuição do investimento em 2023",
-       caption = "Elaboração: SGM/SEPEP/CP",
-       x = NULL, y = NULL)+
-  scale_x_continuous(labels = comma) + 
-  scale_y_continuous(labels = comma)
+  labs(
+    title = "Distribuição do investimento em 2023",
+    caption = "Elaboração: SGM/SEPEP/CP",
+    x = NULL, y = NULL
+  )
+
 
 #mapa 2
 invest_tot %>% 
