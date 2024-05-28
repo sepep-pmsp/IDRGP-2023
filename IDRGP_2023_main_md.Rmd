@@ -958,7 +958,7 @@ base_exec_fisica <- readxl::read_excel("Relatório de Execução Anual do Progra
 
 #content <- httr::content(response, as = "raw") # Extraindo o conteúdo da resposta como um objeto raw
 
-t#emp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
+#temp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
 
 #writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
 
@@ -1085,7 +1085,7 @@ d <- a %>%
   arrange(desc(prop))
 
 a %>% 
-  filter(dotacao == "84.10.10.301.3003.2.520.44505200.00.1.500.7034.1") #c omo o join entre base_exec_reg_23 e base_da_pdm ampliou o número de linhas, será necessário recalcular a coluna proporcao
+  filter(dotacao == "84.10.10.301.3003.2.520.44505200.00.1.500.7034.1") #como o join entre base_exec_reg_23 e base_da_pdm ampliou o número de linhas, será necessário recalcular a coluna proporcao
 
 a <- a %>% 
   group_by(dotacao) %>% 
