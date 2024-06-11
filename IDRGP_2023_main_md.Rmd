@@ -311,9 +311,10 @@ base_da <- base_da %>%
 #checagens
 base_da$dotacao[1] #dotacao no formato adequado
 
-(base_da %>% 
+
+base_da %>% 
   select(dotacao, tipo_regionalizacao, valor_detalhamento_acao) %>% 
-  filter(str_length(dotacao) < 48)) #nenhuma dotação com menos de 48 caracteres
+  filter(str_length(dotacao) < 48) #nenhuma dotação com menos de 48 caracteres
 
 
 base_da1 <- base_da %>% 
@@ -902,6 +903,8 @@ Agora, inserimos informações sobre as execuções física e orçamentária do 
 
 ##### Criação da base_da_pdm - join base_da, base_smae, base_inf_orgaos #####
 
+## Está dando erro aqui! linha 847
+
 # Criar uma base, a partir de com_sub_dot apenas com dotações do PdM
 base_da_pdm <- comp_sub_dot %>% 
   filter(dotacao %in% dotacao_smae)
@@ -1019,7 +1022,7 @@ base_exec_fisica <- readxl::read_excel("Relatório de Execução Anual do Progra
 
 #content <- httr::content(response, as = "raw") # Extraindo o conteúdo da resposta como um objeto raw
 
-t#emp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
+#temp_file <- tempfile(fileext = ".xlsx") # Criando um arquivo temporário para armazenar o conteúdo
 
 #writeBin(content, temp_file) # Escrevendo o conteúdo no arquivo temporário
 
@@ -1146,7 +1149,7 @@ d <- a %>%
   arrange(desc(prop))
 
 a %>% 
-  filter(dotacao == "84.10.10.301.3003.2.520.44505200.00.1.500.7034.1") #c omo o join entre base_exec_reg_23 e base_da_pdm ampliou o número de linhas, será necessário recalcular a coluna proporcao
+  filter(dotacao == "84.10.10.301.3003.2.520.44505200.00.1.500.7034.1") #como o join entre base_exec_reg_23 e base_da_pdm ampliou o número de linhas, será necessário recalcular a coluna proporcao
 
 a <- a %>% 
   group_by(dotacao) %>% 
@@ -2368,7 +2371,10 @@ invest_tot %>%
        caption = "Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
-sum# gráfico percentual liquidado x referência
+
+
+# gráfico percentual liquidado x referência
+
 invest_tot %>% 
   ggplot() +
   geom_col(aes(x = p_liq_23 ,
