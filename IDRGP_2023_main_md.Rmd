@@ -311,6 +311,7 @@ base_da <- base_da %>%
 #checagens
 base_da$dotacao[1] #dotacao no formato adequado
 
+
 base_da %>% 
   select(dotacao, tipo_regionalizacao, valor_detalhamento_acao) %>% 
   filter(str_length(dotacao) < 48) #nenhuma dotação com menos de 48 caracteres
@@ -1203,7 +1204,7 @@ Com a base ajustada, faremos manipulações para explorar os dados e visualizaç
 
 gp_idrgp_pdm <- base_da_pdm %>% 
   group_by(subprefeitura) %>% 
-  summarise(valor_liquidado = sum(valor_liquidado)) %>% 
+  summarise(valor_liquidado = sum(valor_liquidado, na.rm = TRUE)) %>% 
   rename(sp_nome = subprefeitura) %>% 
   left_join(ref_idrgp, by = "sp_nome") %>% 
   mutate(g_perc = valor_liquidado / sum(valor_liquidado),
@@ -1274,7 +1275,7 @@ c %>%
    geom_col(aes(x = valor_liquidado,
                y = forcats::fct_reorder(acao_orcamentaria, valor_liquidado)))
 
-
+sum(gp_idrgp_pdm$valor_liquidado)
 
 ```
 
@@ -1611,6 +1612,8 @@ idrgp<- idrgp %>%
          p_liq_23 = total_idrgp_23/sum(total_idrgp_23), 
          diferenca23 = p_liq_23 - ref_idrgp)
 idrgp %>% select(NOME, total_idrgp_23, p_liq_23, diferenca23)
+
+sum(idrgp$total_idrgp_23)
 
 ```
 
@@ -1979,7 +1982,7 @@ a <- base_da_pdm %>%
 
 sum(a$liq_pdm) == sum(base_da_pdm$valor_liquidado)
 
-a<- a %>% 
+a <- a %>% 
   mutate(orgao = ifelse(orgao =="SMIT; SETRAM", "SMIT", orgao))
 
 colnames(df_oc)
@@ -1994,9 +1997,12 @@ b <- df_oc %>%
   summarise(liq_oc = sum(liq_oc),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   filter(liq_oc > 0)
-b<- b %>% 
+
+b <- b %>% 
   mutate(orgao = ifelse(Secretaria =="SVMA/SIURB", "SVMA", Secretaria)) %>% 
   select(subprefeitura, acao_orcamentaria, orgao, liq_oc)
+
+sum(b$liq_oc) == sum(df_oc$Liquidação)
 
 c <- op %>% 
   select(sp_nome, valor_liquidado_2023, acao_orcamentaria, Secretaria) %>% 
@@ -2008,14 +2014,15 @@ c <- op %>%
   filter(liq_op > 0) %>% 
   rename(orgao = Secretaria)
 
+sum(c$liq_op) == sum(op$valor_liquidado_2023)
+
 d <-  base_da %>% 
   select(subprefeitura, codigo_proj_ativ, valor_detalhamento_acao) %>% 
   rename(acao_orcamentaria = codigo_proj_ativ) %>% 
   group_by(subprefeitura, acao_orcamentaria) %>% 
-  summarise(liq_da = sum(valor_detalhamento_acao),
+  summarise(liq_da = sum(valor_detalhamento_acao, na.rm = TRUE),
             acao_orcamentaria = first(acao_orcamentaria)) %>% 
   mutate(acao_orcamentaria = str_replace(acao_orcamentaria, "^(.{1})(.*)$", "\\1.\\2"))
-
 
 e <- d %>% 
   ungroup() %>% 
@@ -2024,11 +2031,16 @@ e <- d %>%
   summarise(liq_da_sub = sum(liq_da)) %>% 
   filter(!is.na(liq_da_sub))
 
+sum(e$liq_da_sub) == sum(base_da$valor_detalhamento_acao, na.rm = TRUE)
 
 fichas_subp <- a %>% 
   full_join(b, by = intersect(names(a), names(b))) %>% 
   replace_na(list(liq_pdm = 0, liq_oc = 0)) %>% 
   arrange(subprefeitura, acao_orcamentaria)
+
+sum(fichas_subp$liq_pdm)
+
+sum(a$liq_pdm)
 
 fichas_subp <- fichas_subp %>%
   full_join(c, by = intersect(names(fichas_subp), names(c))) %>% 
@@ -2088,6 +2100,11 @@ readr::write_excel_csv2(fichas_subp, "fichas_subp.csv")
 sum(fichas_subp$liq_pdm)
 sum(fichas_subp$liq_oc)
 sum(fichas_subp$liq_op)
+sum(fichas_subp$liq_23)
+
+fichas_subp %>% 
+  group_by(subprefeitura) %>% 
+  summarise(sum(liq_23))
 
 
 
@@ -2248,6 +2265,11 @@ fichas_subp %>%
         subtitle = "Liquidado IDRGP (2023)",
          x = NULL, y = NULL)+
    theme_minimal()
+
+fichas_subp %>% 
+  group_by(descricao_proj_ativ) %>% 
+  summarise(Liquidado = sum(liq_23)) %>%
+  arrange(desc(Liquidado))
  
 #Graficos por órgão
 ggplot(fichas_subp, aes(y = subprefeitura, x = liq_23)) +
@@ -2349,7 +2371,10 @@ invest_tot %>%
        caption = "Elaboração: SGM/SEPEP/CP.",
        x = NULL, y = NULL)
 
+
+
 # gráfico percentual liquidado x referência
+
 invest_tot %>% 
   ggplot() +
   geom_col(aes(x = p_liq_23 ,
